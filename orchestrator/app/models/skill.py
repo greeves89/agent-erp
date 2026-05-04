@@ -1,0 +1,178 @@
+"""Skill Marketplace — persistent, shareable, ratable skills.
+
+A Skill is a reusable set of instructions (routine, template, workflow, pattern)
+that can be assigned to agents. Skills can be created by users, agents, or
+imported from external sources (GitHub repos, MCP registries).
+
+Lifecycle: draft → active → (usage → rating → improvement)
+Agent-proposed skills start as drafts and require user review.
+"""
+
+import enum
+from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base, TimestampMixin
+
+
+class SkillStatus(str, enum.Enum):
+    DRAFT = "draft"          # Agent-proposed or freshly imported, needs review
+    ACTIVE = "active"        # Approved and available in marketplace
+    ARCHIVED = "archived"    # Deprecated, no longer assignable
+
+
+class SkillImprovementStatus(str, enum.Enum):
+    PROBATION = "probation"    # Recently auto-improved, awaiting validation
+    VALIDATED = "validated"    # Post-improvement ratings confirmed better
+    ROLLED_BACK = "rolled_back"  # Post-improvement ratings were worse, content reverted
+
+
+class SkillCategory(str, enum.Enum):
+    ROUTINE = "ROUTINE"       # Repeatable process ("how to deploy")
+    TEMPLATE = "TEMPLATE"     # Document template ("meeting notes format")
+    WORKFLOW = "WORKFLOW"     # Multi-step workflow ("PR review process")
+    PATTERN = "PATTERN"       # Code/architecture pattern ("error handling")
+    RECIPE = "RECIPE"         # Step-by-step guide ("set up monitoring")
+    TOOL = "TOOL"             # Tool-specific skill ("use grep effectively")
+
+
+class Skill(Base, TimestampMixin):
+    __tablename__ = "skills"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, unique=True, index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    content: Mapped[str] = mapped_column(Text, default="")  # SKILL.md body (markdown instructions)
+    category: Mapped[SkillCategory] = mapped_column(Enum(SkillCategory), default=SkillCategory.ROUTINE)
+    status: Mapped[SkillStatus] = mapped_column(Enum(SkillStatus), default=SkillStatus.ACTIVE)
+
+    # Origin tracking
+    created_by: Mapped[str] = mapped_column(String, default="user")  # "user", "agent:<agent_id>", "import:github"
+    source_url: Mapped[str | None] = mapped_column(String, nullable=True)  # GitHub repo URL if imported
+    source_repo: Mapped[str | None] = mapped_column(String, nullable=True)  # e.g. "vercel-labs/skills"
+    source_task_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)  # task that produced this skill
+
+    # Auto-activation (optional glob patterns — skill activates when task touches matching files)
+    paths: Mapped[list | None] = mapped_column(JSON, nullable=True)  # ["**/alembic/**", "**/models/*.py"]
+    # Role-based auto-assign (skill auto-assigned to agents with matching roles)
+    roles: Mapped[list | None] = mapped_column(JSON, nullable=True)  # ["devops", "fullstack"]
+
+    # Time tracking — basis for ROI / time-savings analytics
+    manual_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)  # estimated manual effort
+
+    # Usage & quality
+    usage_count: Mapped[int] = mapped_column(Integer, default=0)
+    avg_rating: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_agent_duration_ms: Mapped[float | None] = mapped_column(Float, nullable=True)  # rolling avg of agent execution time
+    is_public: Mapped[bool] = mapped_column(Boolean, default=True)  # visible in marketplace
+
+    # Versioning
+    current_version: Mapped[int] = mapped_column(Integer, default=1)
+
+    # A/B validation after auto-improvement
+    improvement_status: Mapped[str | None] = mapped_column(
+        String, nullable=True, default=None,
+    )  # NULL=normal, "probation"=awaiting validation, "validated", "rolled_back"
+    probation_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None,
+    )
+    pre_improvement_avg_helpfulness: Mapped[float | None] = mapped_column(
+        Float, nullable=True, default=None,
+    )
+    pre_improvement_rated_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=None,
+    )
+
+
+class AgentSkillAssignment(Base, TimestampMixin):
+    """Junction table: which agents have which skills installed."""
+    __tablename__ = "agent_skill_assignments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    skill_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    assigned_by: Mapped[str] = mapped_column(String, default="user")  # "user", "auto:role", "auto:path", "agent"
+
+
+class SkillTaskUsage(Base):
+    """Records every time a skill was used during a task — with combined quality signals.
+
+    Populated when a task is rated (user or agent). Enables per-skill analytics:
+    time savings vs manual effort, quality trend, agent self-assessment vs user feedback.
+    """
+    __tablename__ = "skill_task_usages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("skills.id", ondelete="CASCADE"), index=True, nullable=False)
+    task_id: Mapped[str] = mapped_column(String, ForeignKey("tasks.id", ondelete="CASCADE"), index=True, nullable=False)
+    agent_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+
+    # Ratings — all optional, filled in progressively
+    skill_helpfulness: Mapped[int | None] = mapped_column(Integer, nullable=True)   # 1-5: how much did the skill help?
+    agent_self_rating: Mapped[int | None] = mapped_column(Integer, nullable=True)   # 1-5: agent's own task quality score
+    user_rating: Mapped[int | None] = mapped_column(Integer, nullable=True)         # 1-5: human rating
+
+    # Task execution snapshot
+    task_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    task_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    task_num_turns: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Version tracking — which version of the skill was in use during this task
+    skill_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Derived savings — filled when task completes if skill has manual_duration_seconds
+    time_saved_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+
+class SkillVersion(Base):
+    """Immutable snapshot of a skill's content at a point in time.
+
+    Created automatically before every content update (user or agent).
+    Enables rollback and version-specific analytics.
+    """
+    __tablename__ = "skill_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("skills.id", ondelete="CASCADE"), index=True, nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+
+    # Snapshot of quality metrics at time of versioning
+    avg_helpfulness_at_snapshot: Mapped[float | None] = mapped_column(Float, nullable=True)
+    usage_count_at_snapshot: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Who triggered this version and why
+    created_by: Mapped[str] = mapped_column(String, default="system")  # "user", "agent:<id>", "improvement_engine", "rollback"
+    change_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+
+class SkillFile(Base):
+    """File attachment for a skill — pushed into agent workspace on skill install."""
+    __tablename__ = "skill_files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("skills.id", ondelete="CASCADE"), index=True, nullable=False)
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    content_type: Mapped[str] = mapped_column(String, default="application/octet-stream")
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    storage_path: Mapped[str] = mapped_column(String, nullable=False)  # absolute path on shared volume
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )

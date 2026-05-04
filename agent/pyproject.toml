@@ -1,0 +1,24 @@
+[project]
+name = "agent-erp-agent"
+version = "0.1.0"
+description = "AgentERP Agent - KI-gesteuerter ERP-Agent in Docker"
+requires-python = ">=3.12"
+dependencies = [
+    "redis[hiredis]>=5.2",
+    "aiohttp>=3.11",
+    "pydantic-settings>=2.7",
+    "httpx>=0.27",
+    # Skill dependencies (spreadsheet, document, finance skills)
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    "pymupdf>=1.23",
+    "python-docx>=1.0",
+    "odfpy>=1.4",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

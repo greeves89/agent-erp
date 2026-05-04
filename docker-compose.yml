@@ -1,0 +1,280 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agent-erp-postgres
+    environment:
+      POSTGRES_DB: agent_erp
+      POSTGRES_USER: agent_erp
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devpassword}
+    # No host port binding - only accessible via internal network
+    # Raise max_connections for 100 concurrent users (default 100 is too low)
+    command: >
+      postgres
+      -c max_connections=250
+      -c shared_buffers=256MB
+      -c work_mem=8MB
+      -c effective_cache_size=512MB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_erp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: agent-erp-redis
+    # No host port binding - only accessible via internal network
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy volatile-lru --requirepass ${REDIS_PASSWORD:-changeme-redis-password}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - internal
+      - agent-network
+
+  # Docker Socket Proxy — restricts Docker API surface for orchestrator.
+  # Only allows container management operations; blocks privileged escalation.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: agent-erp-docker-proxy
+    environment:
+      # Allow container management (required for agent lifecycle)
+      CONTAINERS: 1
+      IMAGES: 1
+      VOLUMES: 1
+      NETWORKS: 1
+      EXEC: 1
+      # Block dangerous operations
+      POST: 1          # Allow container create/start/stop
+      AUTH: 0
+      SECRETS: 0
+      SWARM: 0
+      SERVICES: 0
+      TASKS: 0
+      NODES: 0
+      PLUGINS: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      SESSION: 0
+      SYSTEM: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    networks:
+      - internal
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+      target: base
+    container_name: agent-erp-orchestrator
+    ports:
+      - "${ORCHESTRATOR_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://agent_erp:${DB_PASSWORD:-devpassword}@postgres:5432/agent_erp
+      REDIS_URL: redis://:${REDIS_PASSWORD:-changeme-redis-password}@redis:6379
+      # INTERNAL uses the container_name (agent-erp-redis) so agent containers
+      # on the agent-network can resolve it. The compose service name "redis"
+      # only works on the internal network.
+      REDIS_URL_INTERNAL: redis://:${REDIS_PASSWORD:-changeme-redis-password}@agent-erp-redis:6379
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      CLAUDE_CODE_OAUTH_REFRESH_TOKEN: ${CLAUDE_CODE_OAUTH_REFRESH_TOKEN:-}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-claude-sonnet-4-6}
+      MAX_TURNS: ${MAX_TURNS:-100}
+      MAX_AGENTS: ${MAX_AGENTS:-10}
+      EXTENDED_THINKING: ${EXTENDED_THINKING:-true}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID:-}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET:-}
+      OAUTH_MICROSOFT_CLIENT_ID: ${OAUTH_MICROSOFT_CLIENT_ID:-}
+      OAUTH_MICROSOFT_CLIENT_SECRET: ${OAUTH_MICROSOFT_CLIENT_SECRET:-}
+      OAUTH_APPLE_CLIENT_ID: ${OAUTH_APPLE_CLIENT_ID:-}
+      OAUTH_APPLE_TEAM_ID: ${OAUTH_APPLE_TEAM_ID:-}
+      OAUTH_APPLE_KEY_ID: ${OAUTH_APPLE_KEY_ID:-}
+      OAUTH_APPLE_PRIVATE_KEY: ${OAUTH_APPLE_PRIVATE_KEY:-}
+      OAUTH_REDIRECT_BASE_URL: ${OAUTH_REDIRECT_BASE_URL:-http://localhost:8000}
+      API_SECRET_KEY: ${API_SECRET_KEY:-change-me-in-production}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-}
+      AGENT_IMAGE: agent-erp-agent:latest
+      # Enterprise Volume Mounts — admin-defined allowlist (host paths never exposed to UI)
+      # Format (one per line): label:host_path:container_path:mode  (mode = ro or rw)
+      # Example:
+      #   AGENT_MOUNT_CATALOG: |
+      #     nas-documents:/mnt/nas/documents:/mnt/documents:ro
+      #     project-repo:/srv/repos/myproject:/workspace/repo:rw
+      #     shared-output:/data/agent-output:/output:rw
+      AGENT_MOUNT_CATALOG: ${AGENT_MOUNT_CATALOG:-}
+    volumes:
+      - ./orchestrator:/app
+      - ./VERSION:/VERSION:ro
+      - agent-erp-shared:/shared
+      - ${HOME}/.agent-erp:/host-auth:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      docker-socket-proxy:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - internal
+      - agent-network
+
+  embedding-service:
+    build:
+      context: ./embedding-service
+      dockerfile: Dockerfile
+    container_name: agent-erp-embedding
+    # No port binding - only accessible via internal network
+    volumes:
+      - embedding_models:/models
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
+      - internal
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
+    container_name: agent-erp-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - orchestrator
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - internal
+      - agent-network
+
+  # Reverse proxy - routes /api and /ws to orchestrator, everything else to frontend
+  caddy:
+    image: caddy:2-alpine
+    container_name: agent-erp-caddy
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - orchestrator
+      - frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    networks:
+      - internal
+
+  # Cloudflare Tunnel - exposes the app via HTTPS without opening ports
+  # Set CLOUDFLARE_TUNNEL_TOKEN in .env to enable
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: agent-erp-cloudflared
+    command: tunnel --protocol http2 --edge-ip-version auto --retries 10 --grace-period 60s run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+      NO_AUTOUPDATE: "true"
+    depends_on:
+      - caddy
+    restart: unless-stopped
+    # Restart every 24h to prevent connection-state degradation (known cloudflared long-run issue)
+    stop_grace_period: 10s
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "info"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "autoheal=true"
+    profiles:
+      - tunnel
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    networks:
+      - internal
+
+  # Auto-restart unhealthy containers (only those with autoheal label)
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: agent-erp-autoheal
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: 60
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    profiles:
+      - tunnel
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+
+volumes:
+  postgres_data:
+  redis_data:
+  embedding_models:
+  agent-erp-shared:
+    external: true
+
+networks:
+  internal:
+    driver: bridge
+  agent-network:
+    name: agent-erp-network
+    driver: bridge

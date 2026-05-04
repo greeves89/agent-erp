@@ -1,0 +1,213 @@
+#!/bin/bash
+# ai-team - Helper CLI for agents to interact with the orchestrator API
+# Usage: ai-team <command> [args...]
+#
+# Commands:
+#   create-task <title> <prompt> [priority]       - Create a new task for myself
+#   create-schedule <name> <prompt> <interval>     - Create a recurring schedule
+#   send-message <agent_id> <message>              - Send message to another agent
+#   list-team                                      - List all agents in the team
+#   list-tasks [status]                            - List my tasks
+#   list-schedules                                 - List my schedules
+#   pause-schedule <schedule_id>                   - Pause a schedule
+#   resume-schedule <schedule_id>                  - Resume a schedule
+#   delete-schedule <schedule_id>                  - Delete a schedule
+#   memory-save <category> <key> <content> [importance] - Save to long-term memory
+#   memory-search [query] [category]               - Search memories
+#   memory-list [category]                         - List all memories
+#   memory-delete <memory_id>                      - Delete a memory
+#   notify <title> [message] [priority] [type]     - Send notification to user
+#   approve <question> <option1> <option2> [...]   - Request user approval
+
+set -e
+
+API="${ORCHESTRATOR_URL:-http://orchestrator:8000}/api/v1"
+AGENT_ID="${AGENT_ID:-unknown}"
+AGENT_NAME="${AGENT_NAME:-unknown}"
+AGENT_TOKEN="${AGENT_TOKEN:-}"
+MODEL="${DEFAULT_MODEL:-claude-sonnet-4-6}"
+
+# Auth headers for all API calls
+AUTH_HEADERS=(-H "Authorization: Bearer $AGENT_TOKEN" -H "X-Agent-ID: $AGENT_ID")
+
+json_escape() {
+  python3 -c "import json,sys; print(json.dumps(sys.stdin.read().strip()))"
+}
+
+case "${1:-help}" in
+  create-task)
+    TITLE="${2:?Usage: ai-team create-task <title> <prompt> [priority]}"
+    PROMPT="${3:?Usage: ai-team create-task <title> <prompt> [priority]}"
+    PRIORITY="${4:-5}"
+    ESCAPED_TITLE=$(echo "$TITLE" | json_escape)
+    ESCAPED_PROMPT=$(echo "$PROMPT" | json_escape)
+    curl -s -X POST "$API/tasks/" \
+      -H "Content-Type: application/json" "${AUTH_HEADERS[@]}" \
+      -d "{\"title\": $ESCAPED_TITLE, \"prompt\": $ESCAPED_PROMPT, \"priority\": $PRIORITY, \"agent_id\": \"$AGENT_ID\", \"model\": \"$MODEL\"}"
+    ;;
+
+  create-schedule)
+    NAME="${2:?Usage: ai-team create-schedule <name> <prompt> <interval_seconds>}"
+    PROMPT="${3:?Usage: ai-team create-schedule <name> <prompt> <interval_seconds>}"
+    INTERVAL="${4:?Usage: ai-team create-schedule <name> <prompt> <interval_seconds>}"
+    ESCAPED_NAME=$(echo "$NAME" | json_escape)
+    ESCAPED_PROMPT=$(echo "$PROMPT" | json_escape)
+    curl -s -X POST "$API/schedules/" \
+      -H "Content-Type: application/json" "${AUTH_HEADERS[@]}" \
+      -d "{\"name\": $ESCAPED_NAME, \"prompt\": $ESCAPED_PROMPT, \"interval_seconds\": $INTERVAL, \"agent_id\": \"$AGENT_ID\", \"model\": \"$MODEL\"}"
+    ;;
+
+  send-message)
+    TO_ID="${2:?Usage: ai-team send-message <agent_id> <message>}"
+    MESSAGE="${3:?Usage: ai-team send-message <agent_id> <message>}"
+    ESCAPED_MSG=$(echo "$MESSAGE" | json_escape)
+    curl -s -X POST "$API/agents/$TO_ID/message" \
+      -H "Content-Type: application/json" "${AUTH_HEADERS[@]}" \
+      -d "{\"from_agent_id\": \"$AGENT_ID\", \"from_name\": \"$AGENT_NAME\", \"text\": $ESCAPED_MSG}"
+    ;;
+
+  list-team)
+    curl -s "${AUTH_HEADERS[@]}" "$API/agents/team/directory" | python3 -m json.tool
+    ;;
+
+  list-tasks)
+    STATUS="${2:-}"
+    if [ -n "$STATUS" ]; then
+      curl -s "${AUTH_HEADERS[@]}" "$API/tasks/?agent_id=$AGENT_ID&status=$STATUS" | python3 -m json.tool
+    else
+      curl -s "${AUTH_HEADERS[@]}" "$API/tasks/?agent_id=$AGENT_ID" | python3 -m json.tool
+    fi
+    ;;
+
+  list-schedules)
+    curl -s "${AUTH_HEADERS[@]}" "$API/schedules/" | python3 -m json.tool
+    ;;
+
+  pause-schedule)
+    SID="${2:?Usage: ai-team pause-schedule <schedule_id>}"
+    curl -s -X POST "${AUTH_HEADERS[@]}" "$API/schedules/$SID/pause"
+    ;;
+
+  resume-schedule)
+    SID="${2:?Usage: ai-team resume-schedule <schedule_id>}"
+    curl -s -X POST "${AUTH_HEADERS[@]}" "$API/schedules/$SID/resume"
+    ;;
+
+  delete-schedule)
+    SID="${2:?Usage: ai-team delete-schedule <schedule_id>}"
+    curl -s -X DELETE "${AUTH_HEADERS[@]}" "$API/schedules/$SID"
+    ;;
+
+  # --- Long-term Memory Commands ---
+
+  memory-save)
+    CATEGORY="${2:?Usage: ai-team memory-save <category> <key> <content> [importance]}"
+    KEY="${3:?Usage: ai-team memory-save <category> <key> <content> [importance]}"
+    CONTENT="${4:?Usage: ai-team memory-save <category> <key> <content> [importance]}"
+    IMPORTANCE="${5:-3}"
+    ESCAPED_KEY=$(echo "$KEY" | json_escape)
+    ESCAPED_CONTENT=$(echo "$CONTENT" | json_escape)
+    curl -s -X POST "$API/memory/save" \
+      -H "Content-Type: application/json" "${AUTH_HEADERS[@]}" \
+      -d "{\"agent_id\": \"$AGENT_ID\", \"category\": \"$CATEGORY\", \"key\": $ESCAPED_KEY, \"content\": $ESCAPED_CONTENT, \"importance\": $IMPORTANCE}"
+    ;;
+
+  memory-search)
+    QUERY="${2:-}"
+    CATEGORY="${3:-}"
+    URL="$API/memory/search?agent_id=$AGENT_ID"
+    [ -n "$QUERY" ] && URL="$URL&q=$QUERY"
+    [ -n "$CATEGORY" ] && URL="$URL&category=$CATEGORY"
+    curl -s "${AUTH_HEADERS[@]}" "$URL" | python3 -m json.tool
+    ;;
+
+  memory-list)
+    CATEGORY="${2:-}"
+    URL="$API/memory/agents/$AGENT_ID"
+    [ -n "$CATEGORY" ] && URL="$URL?category=$CATEGORY"
+    curl -s "${AUTH_HEADERS[@]}" "$URL" | python3 -m json.tool
+    ;;
+
+  memory-delete)
+    MID="${2:?Usage: ai-team memory-delete <memory_id>}"
+    curl -s -X DELETE "${AUTH_HEADERS[@]}" "$API/memory/$MID"
+    ;;
+
+  # --- Notification Commands ---
+
+  notify)
+    TITLE="${2:?Usage: ai-team notify <title> [message] [priority] [type]}"
+    MESSAGE="${3:-}"
+    PRIORITY="${4:-normal}"
+    TYPE="${5:-info}"
+    ESCAPED_TITLE=$(echo "$TITLE" | json_escape)
+    ESCAPED_MSG=$(echo "$MESSAGE" | json_escape)
+    curl -s -X POST "$API/notifications/" \
+      -H "Content-Type: application/json" "${AUTH_HEADERS[@]}" \
+      -d "{\"agent_id\": \"$AGENT_ID\", \"type\": \"$TYPE\", \"title\": $ESCAPED_TITLE, \"message\": $ESCAPED_MSG, \"priority\": \"$PRIORITY\"}"
+    ;;
+
+  # --- Approval Request ---
+
+  approve)
+    QUESTION="${2:?Usage: ai-team approve <question> <option1> <option2> [option3] [option4]}"
+    shift 2
+    # Build options array from remaining args
+    OPTIONS="["
+    FIRST=true
+    for opt in "$@"; do
+      if [ "$FIRST" = true ]; then
+        FIRST=false
+      else
+        OPTIONS="$OPTIONS,"
+      fi
+      ESCAPED_OPT=$(echo "$opt" | json_escape)
+      OPTIONS="$OPTIONS$ESCAPED_OPT"
+    done
+    OPTIONS="$OPTIONS]"
+    ESCAPED_Q=$(echo "$QUESTION" | json_escape)
+    curl -s -X POST "$API/notifications/" \
+      -H "Content-Type: application/json" "${AUTH_HEADERS[@]}" \
+      -d "{\"agent_id\": \"$AGENT_ID\", \"type\": \"approval\", \"title\": $ESCAPED_Q, \"message\": \"\", \"priority\": \"high\", \"meta\": {\"options\": $OPTIONS}}"
+    ;;
+
+  help|--help|-h)
+    echo "ai-team - Agent CLI for orchestrator interaction"
+    echo ""
+    echo "Team Commands:"
+    echo "  create-task <title> <prompt> [priority]       Create a task for myself"
+    echo "  create-schedule <name> <prompt> <interval>    Create a recurring schedule (interval in seconds)"
+    echo "  send-message <agent_id> <message>             Send message to another agent"
+    echo "  list-team                                     List all team members"
+    echo "  list-tasks [status]                           List my tasks"
+    echo "  list-schedules                                List all schedules"
+    echo "  pause-schedule <id>                           Pause a schedule"
+    echo "  resume-schedule <id>                          Resume a schedule"
+    echo "  delete-schedule <id>                          Delete a schedule"
+    echo ""
+    echo "Memory Commands (Long-term Knowledge):"
+    echo "  memory-save <category> <key> <content> [importance]"
+    echo "    Categories: preference, contact, project, procedure, decision, fact, learning"
+    echo "    Importance: 1-5 (default: 3)"
+    echo "  memory-search [query] [category]              Search memories"
+    echo "  memory-list [category]                        List all memories"
+    echo "  memory-delete <memory_id>                     Delete a memory"
+    echo ""
+    echo "Notification Commands:"
+    echo "  notify <title> [message] [priority] [type]    Send notification to user"
+    echo "    Priority: low, normal, high, urgent"
+    echo "    Type: info, warning, error, success"
+    echo "  approve <question> <opt1> <opt2> [opt3...]    Request user approval"
+    echo ""
+    echo "Environment:"
+    echo "  ORCHESTRATOR_URL=$API"
+    echo "  AGENT_ID=$AGENT_ID"
+    echo "  AGENT_NAME=$AGENT_NAME"
+    ;;
+
+  *)
+    echo "Unknown command: $1"
+    echo "Run 'ai-team help' for usage"
+    exit 1
+    ;;
+esac

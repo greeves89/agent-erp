@@ -1,0 +1,330 @@
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.core.load_balancer import LoadBalancer
+from app.core.pricing import estimate_prompt_cost
+from app.core.task_router import TaskRouter
+from app.db.session import get_db
+from app.dependencies import get_redis_service, require_auth, require_auth_or_agent
+from app.models.task import Task, TaskStatus
+from app.schemas.task import TaskBatchCreate, TaskBatchResponse, TaskCreate, TaskListResponse, TaskResponse
+from app.services.redis_service import RedisService
+
+router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+def _get_task_router(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    redis: RedisService = Depends(get_redis_service),
+) -> TaskRouter:
+    lb = LoadBalancer(redis)
+    docker = getattr(request.app.state, "docker", None)
+    return TaskRouter(db, redis, lb, docker_service=docker)
+
+
+async def _get_user_agent_ids(user, db: AsyncSession) -> list[str] | None:
+    """Return agent IDs owned by user, or None if admin (sees all)."""
+    from app.models.user import UserRole
+    if hasattr(user, "role") and user.role == UserRole.ADMIN:
+        return None
+    from app.models.agent import Agent
+    from app.models.agent_access import AgentAccess
+    owned = await db.execute(
+        select(Agent.id).where(
+            (Agent.user_id == user.id) | (Agent.user_id.is_(None))
+        )
+    )
+    shared = await db.execute(
+        select(AgentAccess.agent_id).where(AgentAccess.user_id == user.id)
+    )
+    return list({row[0] for row in owned.all()} | {row[0] for row in shared.all()})
+
+
+@router.get("/", response_model=TaskListResponse)
+async def list_tasks(
+    status: TaskStatus | None = None,
+    agent_id: str | None = None,
+    user=Depends(require_auth_or_agent),
+    db: AsyncSession = Depends(get_db),
+    router_: TaskRouter = Depends(_get_task_router),
+):
+    agent_ids = await _get_user_agent_ids(user, db) if hasattr(user, "role") else None
+    tasks = await router_.list_tasks(status=status, agent_id=agent_id, agent_ids=agent_ids)
+    return TaskListResponse(
+        tasks=[TaskResponse.model_validate(t) for t in tasks],
+        total=len(tasks),
+    )
+
+
+@router.post("/", response_model=TaskResponse, status_code=201)
+async def create_task(
+    data: TaskCreate,
+    user=Depends(require_auth_or_agent),
+    router_: TaskRouter = Depends(_get_task_router),
+):
+    from app.models.user import UserRole
+    if hasattr(user, "role") and user.role == UserRole.VIEWER:
+        raise HTTPException(status_code=403, detail="Viewers cannot create tasks")
+    task = await router_.create_and_route_task(
+        title=data.title,
+        prompt=data.prompt,
+        priority=data.priority,
+        agent_id=data.agent_id,
+        model=data.model,
+        parent_task_id=data.parent_task_id,
+        created_by_agent=data.created_by_agent,
+    )
+    return TaskResponse.model_validate(task)
+
+
+@router.post("/batch", response_model=TaskBatchResponse, status_code=201)
+async def create_task_batch(
+    data: TaskBatchCreate,
+    user=Depends(require_auth_or_agent),
+    router_: TaskRouter = Depends(_get_task_router),
+):
+    """Create multiple tasks in a single call for parallel sub-agent execution.
+
+    All tasks are created independently and can run on different agents
+    simultaneously. If parent_task_id is set, all tasks become subtasks
+    of that parent. The parent agent is notified individually as each
+    subtask completes (not aggregated).
+    """
+    from app.models.user import UserRole
+    if hasattr(user, "role") and user.role == UserRole.VIEWER:
+        raise HTTPException(status_code=403, detail="Viewers cannot create tasks")
+
+    if not data.tasks:
+        raise HTTPException(status_code=400, detail="At least one task is required")
+    if len(data.tasks) > 20:
+        raise HTTPException(status_code=400, detail="Maximum 20 tasks per batch")
+
+    created = []
+    for task_data in data.tasks:
+        task = await router_.create_and_route_task(
+            title=task_data.title,
+            prompt=task_data.prompt,
+            priority=task_data.priority,
+            agent_id=task_data.agent_id,
+            model=task_data.model,
+            parent_task_id=data.parent_task_id or task_data.parent_task_id,
+            created_by_agent=data.created_by_agent or task_data.created_by_agent,
+        )
+        created.append(TaskResponse.model_validate(task))
+
+    return TaskBatchResponse(
+        tasks=created,
+        total=len(created),
+        parent_task_id=data.parent_task_id,
+    )
+
+
+class TaskEstimateRequest(BaseModel):
+    prompt: str
+    model: str | None = None
+    agent_id: str | None = None
+
+
+class TaskEstimateResponse(BaseModel):
+    estimated_input_tokens: int
+    model: str
+    min_usd: float
+    avg_usd: float
+    max_usd: float
+    agent_avg_usd: float | None = None  # Historical average for this agent
+
+
+@router.post("/estimate", response_model=TaskEstimateResponse)
+async def estimate_task_cost(
+    data: TaskEstimateRequest,
+    user=Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Estimate the cost of a task before execution.
+
+    Combines model pricing with historical agent performance data.
+    """
+    model = data.model or settings.default_model
+    estimate = estimate_prompt_cost(data.prompt, model)
+
+    # If agent specified, get historical average cost
+    agent_avg = None
+    if data.agent_id:
+        from app.models.agent import Agent
+
+        result = await db.execute(select(Agent).where(Agent.id == data.agent_id))
+        agent = result.scalar_one_or_none()
+        if agent and agent.config:
+            metrics = agent.config.get("metrics", {})
+            total_cost = agent.config.get("total_cost_usd", 0)
+            total_tasks = metrics.get("total", 0)
+            if total_tasks > 0:
+                agent_avg = round(total_cost / total_tasks, 6)
+
+    return TaskEstimateResponse(
+        **estimate,
+        agent_avg_usd=agent_avg,
+    )
+
+
+@router.get("/{task_id}", response_model=TaskResponse)
+async def get_task(
+    task_id: str,
+    user=Depends(require_auth_or_agent),
+    db: AsyncSession = Depends(get_db),
+    router_: TaskRouter = Depends(_get_task_router),
+):
+    task = await router_.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if hasattr(user, "role"):
+        allowed = await _get_user_agent_ids(user, db)
+        if allowed is not None and task.agent_id not in allowed:
+            raise HTTPException(status_code=403, detail="Access denied")
+    return TaskResponse.model_validate(task)
+
+
+@router.delete("/{task_id}")
+async def delete_task(
+    task_id: str,
+    user=Depends(require_auth),
+    router_: TaskRouter = Depends(_get_task_router),
+):
+    try:
+        deleted = await router_.delete_task(task_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"ok": True}
+
+
+@router.post("/{task_id}/cancel", response_model=TaskResponse)
+async def cancel_task(
+    task_id: str,
+    user=Depends(require_auth),
+    router_: TaskRouter = Depends(_get_task_router),
+):
+    try:
+        task = await router_.cancel_task(task_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return TaskResponse.model_validate(task)
+
+
+@router.post("/{task_id}/retain")
+async def retain_task(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_auth),
+):
+    """Pin a task so the GC never auto-evicts it (UI is viewing it)."""
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task.retain = True
+    task.evict_after = None  # Cancel any scheduled eviction
+    await db.commit()
+    return {"ok": True, "task_id": task_id, "retain": True}
+
+
+@router.post("/{task_id}/release")
+async def release_task(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_auth),
+):
+    """Release a task so the GC can evict it after the grace period."""
+    from datetime import datetime, timedelta, timezone
+    from app.core.task_router import TASK_EVICT_GRACE_SECONDS
+    from app.models.task import is_terminal_task_status
+
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task.retain = False
+    if is_terminal_task_status(task.status) and task.notified:
+        task.evict_after = datetime.now(timezone.utc) + timedelta(seconds=TASK_EVICT_GRACE_SECONDS)
+    await db.commit()
+    return {"ok": True, "task_id": task_id, "retain": False}
+
+
+class AgentCostEntry(BaseModel):
+    agent_id: str
+    agent_name: str
+    total_cost_usd: float
+    total_input_tokens: int
+    total_output_tokens: int
+    task_count: int
+
+
+class CostAttributionResponse(BaseModel):
+    top_agents: list[AgentCostEntry]
+    platform_total_usd: float
+    platform_total_input_tokens: int
+    platform_total_output_tokens: int
+
+
+@router.get("/cost-attribution", response_model=CostAttributionResponse)
+async def get_cost_attribution(
+    limit: int = 5,
+    user=Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Top N agents by total cost with token breakdowns."""
+    from app.models.agent import Agent
+
+    result = await db.execute(
+        select(
+            Task.agent_id,
+            func.sum(Task.cost_usd).label("total_cost"),
+            func.sum(Task.input_tokens).label("total_input"),
+            func.sum(Task.output_tokens).label("total_output"),
+            func.count(Task.id).label("task_count"),
+        )
+        .where(Task.agent_id.isnot(None), Task.cost_usd.isnot(None))
+        .group_by(Task.agent_id)
+        .order_by(func.sum(Task.cost_usd).desc())
+        .limit(limit)
+    )
+    rows = result.all()
+
+    agent_ids = [r.agent_id for r in rows]
+    agents_result = await db.execute(select(Agent).where(Agent.id.in_(agent_ids)))
+    agents_map = {a.id: a.name for a in agents_result.scalars().all()}
+
+    top_agents = [
+        AgentCostEntry(
+            agent_id=r.agent_id,
+            agent_name=agents_map.get(r.agent_id, "Unknown"),
+            total_cost_usd=round(r.total_cost or 0, 4),
+            total_input_tokens=r.total_input or 0,
+            total_output_tokens=r.total_output or 0,
+            task_count=r.task_count,
+        )
+        for r in rows
+    ]
+
+    totals = await db.execute(
+        select(
+            func.coalesce(func.sum(Task.cost_usd), 0).label("total_cost"),
+            func.coalesce(func.sum(Task.input_tokens), 0).label("total_input"),
+            func.coalesce(func.sum(Task.output_tokens), 0).label("total_output"),
+        ).where(Task.cost_usd.isnot(None))
+    )
+    t = totals.one()
+
+    return CostAttributionResponse(
+        top_agents=top_agents,
+        platform_total_usd=round(float(t.total_cost), 4),
+        platform_total_input_tokens=int(t.total_input),
+        platform_total_output_tokens=int(t.total_output),
+    )

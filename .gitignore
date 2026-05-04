@@ -1,0 +1,94 @@
+# Environment
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite3
+
+# Auto-generated secrets
+orchestrator/data/
+
+# AI coding tool config dirs (never commit these)
+.adal/
+.agents/
+.augment/
+.bob/
+.claude/
+.codebuddy/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.factory/
+.goose/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/
+skills/
+skills-lock.json
+agent/l3-approval-hook.sh
+orchestrator/VERSION
+
+# Temporary/generated files
+cookies.txt
+create_pptx.py
+AI_Employee_Feature_Overview.pptx
+frontend/tsconfig.tsbuildinfo
+host-auth/
+license-keys/
+backup-*.sql.gz
+konkurrenzanalyse-*.pdf
+
+# Internal files
+SECURITY-TODO.md
+todo.md
+CLAUDE.md

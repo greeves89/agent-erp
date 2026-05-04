@@ -1,0 +1,199 @@
+"use client";
+
+import Link from "next/link";
+import { Cpu, MemoryStick, Layers, ArrowUpRight, UserCheck, UserCog, ArrowUpCircle, Plug } from "lucide-react";
+import type { Agent } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { useSimpleMode } from "@/hooks/use-simple-mode";
+
+const statusConfig: Record<string, {
+  online: boolean;
+  label: string;
+  badge: string;
+  glow?: string;
+}> = {
+  running: {
+    online: true,
+    label: "Idle",
+    badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  },
+  idle: {
+    online: true,
+    label: "Idle",
+    badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  },
+  working: {
+    online: true,
+    label: "Working",
+    badge: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    glow: "from-blue-500/20 to-transparent",
+  },
+  stopped: {
+    online: false,
+    label: "Stopped",
+    badge: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+  },
+  error: {
+    online: false,
+    label: "Error",
+    badge: "bg-red-500/10 text-red-400 border-red-500/20",
+  },
+  created: {
+    online: false,
+    label: "Starting",
+    badge: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  },
+};
+
+interface AgentCardProps {
+  agent: Agent;
+}
+
+export function AgentCard({ agent }: AgentCardProps) {
+  const cpuPercent = agent.cpu_percent ?? 0;
+  const memMb = agent.memory_usage_mb ?? 0;
+  const config = statusConfig[agent.state] ?? statusConfig.stopped;
+  const isActive = config.online;
+  const { simpleMode } = useSimpleMode();
+
+  return (
+    <Link href={`/agents/${agent.id}`} className="group block h-full">
+      <div className="relative overflow-hidden rounded-xl border border-foreground/[0.06] bg-card/80 backdrop-blur-sm p-5 transition-all duration-200 hover:border-foreground/[0.1] hover:bg-card/90 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 flex flex-col h-full">
+        {/* Top accent line */}
+        {isActive && (
+          <div className={cn(
+            "absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+          )} />
+        )}
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2 mb-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+              isActive ? "bg-primary/10" : "bg-foreground/[0.06]"
+            )}>
+              <Cpu className={cn("h-5 w-5", isActive ? "text-primary" : "text-muted-foreground")} />
+            </div>
+            <div className="min-w-0">
+              <h4 className="font-semibold text-sm tracking-tight truncate" title={agent.name}>{agent.name}</h4>
+              <div className="flex items-center gap-1.5">
+                {agent.role ? (
+                  <span className="text-[11px] text-primary/70 font-medium truncate">{agent.role}</span>
+                ) : (
+                  <span className="text-[11px] font-mono text-muted-foreground/70">
+                    {agent.model.split("-").slice(0, 2).join("-")}
+                  </span>
+                )}
+                {agent.onboarding_complete ? (
+                  <span title="Onboarded" className="shrink-0"><UserCheck className="h-3 w-3 text-emerald-400" /></span>
+                ) : (
+                  <span title="Needs onboarding" className="shrink-0"><UserCog className="h-3 w-3 text-amber-400 animate-pulse" /></span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Status badges */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {agent.mode === "claude_code" ? (
+              <div className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-medium bg-orange-500/10 text-orange-400 border-orange-500/20">
+                <Plug className="h-3 w-3" />
+                Anthropic
+              </div>
+            ) : agent.mode === "custom_llm" && agent.llm_config ? (
+              <div className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-medium bg-violet-500/10 text-violet-400 border-violet-500/20">
+                <Plug className="h-3 w-3" />
+                {agent.llm_config.provider_type === "openai" ? "OpenAI" :
+                 agent.llm_config.provider_type === "google" ? "Gemini" :
+                 agent.llm_config.provider_type === "anthropic" ? "Anthropic" :
+                 agent.llm_config.provider_type}
+              </div>
+            ) : null}
+            {agent.update_available && (
+              <div className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-medium bg-amber-500/10 text-amber-400 border-amber-500/20">
+                <ArrowUpCircle className="h-3 w-3" />
+                Update
+              </div>
+            )}
+            <div className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium",
+              config.badge
+            )}>
+              {/* Green/red dot = online/offline */}
+              <span className="relative flex h-1.5 w-1.5">
+                {config.online && (
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+                )}
+                <span className={cn(
+                  "relative inline-flex h-1.5 w-1.5 rounded-full",
+                  config.online ? "bg-emerald-500" : "bg-red-500"
+                )} />
+              </span>
+              {config.label}
+            </div>
+          </div>
+        </div>
+
+        {/* Current task */}
+        {agent.current_task && (
+          <div className="mb-4 rounded-lg bg-blue-500/5 border border-blue-500/10 px-3 py-2">
+            <p className="text-[11px] font-medium text-blue-400 truncate">
+              {agent.current_task}
+            </p>
+          </div>
+        )}
+
+        {/* Metrics (hidden in simple mode) */}
+        {!simpleMode && (
+          <div className="space-y-3 flex-1">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Cpu className="h-3 w-3" /> CPU
+                </span>
+                <span className="font-mono font-medium tabular-nums">{cpuPercent.toFixed(1)}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-foreground/[0.06]">
+                <div
+                  className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 shadow-[0_0_8px_rgba(59,130,246,0.3)] transition-all duration-700 ease-out"
+                  style={{ width: `${Math.min(cpuPercent, 100)}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <MemoryStick className="h-3 w-3" /> Memory
+                </span>
+                <span className="font-mono font-medium tabular-nums">{memMb.toFixed(0)} MB</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-foreground/[0.06]">
+                <div
+                  className="h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_8px_rgba(34,197,94,0.3)] transition-all duration-700 ease-out"
+                  style={{ width: `${Math.min((memMb / 2048) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="mt-4 flex items-center justify-between pt-3 border-t border-foreground/[0.04]">
+          {!simpleMode && agent.queue_depth !== null && agent.queue_depth > 0 ? (
+            <div className="flex items-center gap-1.5 text-[11px] text-amber-400">
+              <Layers className="h-3 w-3" />
+              {agent.queue_depth} queued
+            </div>
+          ) : (
+            <span className="text-[11px] text-muted-foreground/50">{simpleMode ? "" : "No queue"}</span>
+          )}
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+            Open <ArrowUpRight className="h-3 w-3" />
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
