@@ -367,3 +367,38 @@ class ErpAuditLog(Base):
     )
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     session_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# User Permissions (RBAC)
+# ---------------------------------------------------------------------------
+
+class ErpResource(str, enum.Enum):
+    CUSTOMERS = "customers"
+    ARTICLES = "articles"
+    ORDERS = "orders"
+    INVOICES = "invoices"
+    DASHBOARD = "dashboard"
+    AUDIT_LOG = "audit_log"
+
+
+class ErpPermission(Base, TimestampMixin):
+    """Per-user permission overrides for ERP resources.
+
+    If no row exists for a user+resource, role-based defaults apply.
+    An explicit row overrides the role default for that resource.
+    """
+    __tablename__ = "erp_permissions"
+    __table_args__ = (
+        {"comment": "Per-user ERP permission overrides"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    resource: Mapped[str] = mapped_column(String(50), nullable=False)
+    can_read: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    can_create: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    can_update: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    can_delete: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")

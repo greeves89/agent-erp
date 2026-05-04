@@ -14,7 +14,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "member";
+  role: "admin" | "manager" | "member" | "viewer";
   is_active: boolean;
 }
 

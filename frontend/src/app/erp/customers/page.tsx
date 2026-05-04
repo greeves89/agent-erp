@@ -13,9 +13,11 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { cn } from "@/lib/utils";
+import { useErpPermissions } from "@/hooks/use-erp-permissions";
 import * as api from "@/lib/api";
 
 export default function CustomersPage() {
+  const { can } = useErpPermissions();
   const [customers, setCustomers] = useState<api.ErpCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,13 +86,15 @@ export default function CustomersPage() {
         title="Customers"
         subtitle="Manage your customer database"
         actions={
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all duration-200 hover:shadow-primary/30 hover:-translate-y-0.5"
-          >
-            <Plus className="h-4 w-4" />
-            New Customer
-          </button>
+          can("customers", "create") ? (
+            <button
+              onClick={() => setShowCreate(!showCreate)}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all duration-200 hover:shadow-primary/30 hover:-translate-y-0.5"
+            >
+              <Plus className="h-4 w-4" />
+              New Customer
+            </button>
+          ) : undefined
         }
       />
 

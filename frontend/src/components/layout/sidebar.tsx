@@ -46,6 +46,7 @@ import { UserMenu } from "./user-menu";
 import { FeedbackModal } from "@/components/feedback/feedback-modal";
 import { useAuthStore } from "@/lib/auth";
 import { useSidebarCollapsed } from "@/hooks/use-sidebar";
+import { useErpPermissions } from "@/hooks/use-erp-permissions";
 
 type NavItem = {
   href: string;
@@ -118,6 +119,7 @@ export function Sidebar() {
   const isAdmin = user?.role === "admin";
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const { collapsed, toggle } = useSidebarCollapsed();
+  const { can: erpCan } = useErpPermissions();
   const [starCount, setStarCount] = useState<number | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [aboutVersion, setAboutVersion] = useState<string | null>(null);
@@ -156,10 +158,26 @@ export function Sidebar() {
     setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // In collapsed mode, show all items (groups are irrelevant)
-  const allItems = navGroups.flatMap((g) => g.items);
+  const erpResourceMap: Record<string, string> = {
+    "/erp": "dashboard",
+    "/erp/customers": "customers",
+    "/erp/orders": "orders",
+    "/erp/invoices": "invoices",
+  };
 
-  // Check if any item in a group is active
+  const filteredNavGroups = navGroups.map((group) => {
+    if (group.key !== "erp") return group;
+    return {
+      ...group,
+      items: group.items.filter((item) => {
+        const resource = erpResourceMap[item.href];
+        return resource ? erpCan(resource, "read") : true;
+      }),
+    };
+  }).filter((group) => group.items.length > 0);
+
+  const allItems = filteredNavGroups.flatMap((g) => g.items);
+
   const isGroupActive = (group: NavGroup) =>
     group.items.some((item) => pathname.startsWith(item.href));
 
@@ -228,7 +246,7 @@ export function Sidebar() {
           })
         ) : (
           // Expanded: grouped
-          navGroups.map((group) => {
+          filteredNavGroups.map((group) => {
             const isOpen = openGroups[group.key] ?? true;
             const hasActive = isGroupActive(group);
             return (

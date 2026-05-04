@@ -1812,3 +1812,22 @@ export async function getErpInvoices(params?: {
   const qs = sp.toString() ? `?${sp}` : "";
   return fetchJSON(`${getBase()}/erp/invoices${qs}`);
 }
+
+// --- ERP Permissions ---
+
+export interface ErpPermissions {
+  customers: { read: boolean; create: boolean; update: boolean; delete: boolean };
+  articles: { read: boolean; create: boolean; update: boolean; delete: boolean };
+  orders: { read: boolean; create: boolean; update: boolean; delete: boolean };
+  invoices: { read: boolean; create: boolean; update: boolean; delete: boolean };
+  dashboard: { read: boolean; create: boolean; update: boolean; delete: boolean };
+  audit_log: { read: boolean; create: boolean; update: boolean; delete: boolean };
+  [key: string]: { read: boolean; create: boolean; update: boolean; delete: boolean };
+}
+
+export async function getMyErpPermissions(): Promise<{
+  permissions: ErpPermissions;
+  role: string;
+}> {
+  return fetchJSON(`${getBase()}/erp/permissions/me`);
+}

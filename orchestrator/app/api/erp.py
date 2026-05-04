@@ -17,8 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
+from app.core.erp_permissions import erp_permission, get_user_erp_permissions
 from app.dependencies import require_auth
 from app.models.erp import (
+    ErpPermission,
     ErpArticle,
     ErpAuditLog,
     ErpCustomer,
@@ -481,7 +483,7 @@ async def list_customers(
     is_active: bool | None = Query(None, description="Filter by active status"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    user=Depends(require_auth),
+    user=Depends(erp_permission("customers", "read")),
     db: AsyncSession = Depends(get_db),
 ):
     """List customers with optional search and pagination."""
@@ -515,7 +517,7 @@ async def list_customers(
 @router.post("/customers", status_code=201)
 async def create_customer(
     body: CustomerCreate,
-    user=Depends(require_auth),
+    user=Depends(erp_permission("customers", "create")),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new customer."""
@@ -563,7 +565,7 @@ async def create_customer(
 @router.get("/customers/{customer_id}")
 async def get_customer(
     customer_id: str,
-    user=Depends(require_auth),
+    user=Depends(erp_permission("customers", "read")),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a single customer by ID."""
@@ -577,7 +579,7 @@ async def get_customer(
 async def update_customer(
     customer_id: str,
     body: CustomerUpdate,
-    user=Depends(require_auth),
+    user=Depends(erp_permission("customers", "update")),
     db: AsyncSession = Depends(get_db),
 ):
     """Update an existing customer."""
@@ -624,7 +626,7 @@ async def list_articles(
     is_active: bool | None = Query(None),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    user=Depends(require_auth),
+    user=Depends(erp_permission("articles", "read")),
     db: AsyncSession = Depends(get_db),
 ):
     """List articles with optional search and pagination."""
@@ -660,7 +662,7 @@ async def list_articles(
 @router.post("/articles", status_code=201)
 async def create_article(
     body: ArticleCreate,
-    user=Depends(require_auth),
+    user=Depends(erp_permission("articles", "create")),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new article."""
@@ -715,7 +717,7 @@ async def list_orders(
     customer_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    user=Depends(require_auth),
+    user=Depends(erp_permission("orders", "read")),
     db: AsyncSession = Depends(get_db),
 ):
     """List orders with optional filters and pagination."""
@@ -755,7 +757,7 @@ async def list_orders(
 @router.post("/orders", status_code=201)
 async def create_order(
     body: OrderCreate,
-    user=Depends(require_auth),
+    user=Depends(erp_permission("orders", "create")),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new order with line items.
@@ -877,7 +879,7 @@ async def create_order(
 async def update_order_status(
     order_id: str,
     body: OrderStatusUpdate,
-    user=Depends(require_auth),
+    user=Depends(erp_permission("orders", "update")),
     db: AsyncSession = Depends(get_db),
 ):
     """Update the status of an order.
@@ -945,7 +947,7 @@ async def list_invoices(
     customer_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    user=Depends(require_auth),
+    user=Depends(erp_permission("invoices", "read")),
     db: AsyncSession = Depends(get_db),
 ):
     """List invoices with optional filters and pagination."""
@@ -985,7 +987,7 @@ async def list_invoices(
 @router.post("/invoices", status_code=201)
 async def create_invoice_from_order(
     body: InvoiceFromOrderCreate,
-    user=Depends(require_auth),
+    user=Depends(erp_permission("invoices", "create")),
     db: AsyncSession = Depends(get_db),
 ):
     """Create an invoice from an existing order.
@@ -1101,7 +1103,7 @@ async def create_invoice_from_order(
 
 @router.get("/dashboard")
 async def erp_dashboard(
-    user=Depends(require_auth),
+    user=Depends(erp_permission("dashboard", "read")),
     db: AsyncSession = Depends(get_db),
 ):
     """ERP dashboard with key metrics.
@@ -1202,7 +1204,7 @@ async def list_audit_log(
     since: Optional[datetime] = Query(None, description="Return entries after this timestamp"),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    user=Depends(require_auth),
+    user=Depends(erp_permission("audit_log", "read")),
     db: AsyncSession = Depends(get_db),
 ):
     """Query the ERP audit log. GoBD-compliant, immutable entries."""
@@ -1227,3 +1229,127 @@ async def list_audit_log(
         "entries": [_serialize_audit_entry(e) for e in entries],
         "total": total or 0,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PERMISSIONS
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class PermissionSet(BaseModel):
+    resource: str
+    can_read: bool = False
+    can_create: bool = False
+    can_update: bool = False
+    can_delete: bool = False
+
+
+class SetPermissionsBody(BaseModel):
+    user_id: str
+    permissions: list[PermissionSet]
+
+
+@router.get("/permissions/me")
+async def my_erp_permissions(
+    user=Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the effective ERP permissions for the current user."""
+    perms = await get_user_erp_permissions(user, db)
+    return {"permissions": perms, "role": getattr(user, "role", None)}
+
+
+@router.get("/permissions/{user_id}")
+async def get_user_permissions(
+    user_id: str,
+    user=Depends(erp_permission("audit_log", "read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return effective permissions for a specific user (admin/manager only)."""
+    from app.models.user import User
+    target = await db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    perms = await get_user_erp_permissions(target, db)
+    return {
+        "user_id": user_id,
+        "name": target.name,
+        "role": target.role,
+        "permissions": perms,
+    }
+
+
+@router.put("/permissions")
+async def set_user_permissions(
+    body: SetPermissionsBody,
+    user=Depends(erp_permission("audit_log", "read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set per-user ERP permission overrides (admin/manager only)."""
+    from app.models.user import User, UserRole
+    if getattr(user, "role", None) not in (UserRole.ADMIN, UserRole.MANAGER):
+        raise HTTPException(status_code=403, detail="Only admin/manager can manage permissions")
+
+    target = await db.get(User, body.user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    existing = await db.execute(
+        select(ErpPermission).where(ErpPermission.user_id == body.user_id)
+    )
+    for row in existing.scalars().all():
+        await db.delete(row)
+
+    for perm in body.permissions:
+        db.add(ErpPermission(
+            user_id=body.user_id,
+            resource=perm.resource,
+            can_read=perm.can_read,
+            can_create=perm.can_create,
+            can_update=perm.can_update,
+            can_delete=perm.can_delete,
+        ))
+
+    _audit(
+        db,
+        table_name="erp_permissions",
+        record_id=uuid.uuid5(uuid.NAMESPACE_URL, body.user_id),
+        action="UPDATE",
+        performed_by=_user_email(user),
+        new_values={"user_id": body.user_id, "permissions": [p.model_dump() for p in body.permissions]},
+    )
+
+    await db.commit()
+    return {"status": "ok", "user_id": body.user_id, "overrides": len(body.permissions)}
+
+
+@router.delete("/permissions/{user_id}")
+async def reset_user_permissions(
+    user_id: str,
+    user=Depends(erp_permission("audit_log", "read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove all per-user overrides, resetting to role defaults (admin only)."""
+    from app.models.user import UserRole
+    if getattr(user, "role", None) != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only admin can reset permissions")
+
+    existing = await db.execute(
+        select(ErpPermission).where(ErpPermission.user_id == user_id)
+    )
+    count = 0
+    for row in existing.scalars().all():
+        await db.delete(row)
+        count += 1
+
+    _audit(
+        db,
+        table_name="erp_permissions",
+        record_id=uuid.uuid5(uuid.NAMESPACE_URL, user_id),
+        action="DELETE",
+        performed_by=_user_email(user),
+        old_values={"user_id": user_id, "overrides_removed": count},
+    )
+
+    await db.commit()
+    return {"status": "ok", "user_id": user_id, "overrides_removed": count}

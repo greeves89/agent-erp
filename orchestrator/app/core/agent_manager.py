@@ -435,6 +435,24 @@ class AgentManager:
         self.redis = redis
 
     @staticmethod
+    def _build_agent_database_url() -> str:
+        """Build a plain postgresql:// URL for agent containers (no asyncpg driver prefix).
+
+        Parses the orchestrator's DATABASE_URL to extract credentials, but targets
+        the container name ``agent-erp-postgres`` (resolvable on agent-network).
+        """
+        import re
+        db_url = settings.database_url
+        # Extract user:password@host/dbname from the asyncpg URL
+        m = re.search(r"://([^@]+)@[^/]+/(\S+)", db_url)
+        if m:
+            userpass = m.group(1)
+            dbname = m.group(2).split("?")[0]
+            return f"postgresql://{userpass}@agent-erp-postgres:5432/{dbname}"
+        # Fallback
+        return "postgresql://agent_erp:devpassword@agent-erp-postgres:5432/agent_erp"
+
+    @staticmethod
     def _build_provider_env(agent_provider: str | None = None) -> dict[str, str]:
         """Build environment variables for the active model provider.
 
@@ -595,7 +613,7 @@ class AgentManager:
             "MAX_TURNS": str(settings.max_turns),
             "AUTONOMY_LEVEL": autonomy_level.lower(),
             # Direct Postgres access for ERP MCP server (agent-network can reach postgres)
-            "DATABASE_URL": f"postgresql://agent_erp:{settings.db_password}@agent-erp-postgres:5432/agent_erp",
+            "DATABASE_URL": self._build_agent_database_url(),
         }
 
         if mode == "custom_llm" and llm_config:
@@ -845,6 +863,7 @@ class AgentManager:
             "AGENT_MODE": mode,
             "MAX_TURNS": str(settings.max_turns),
             "AUTONOMY_LEVEL": (agent.autonomy_level or "l3").lower(),
+            "DATABASE_URL": self._build_agent_database_url(),
         }
 
         if mode == "custom_llm" and agent.llm_config:
@@ -1000,6 +1019,7 @@ class AgentManager:
             "AGENT_MODE": mode,
             "MAX_TURNS": str(settings.max_turns),
             "AUTONOMY_LEVEL": (agent.autonomy_level or "l3").lower(),
+            "DATABASE_URL": self._build_agent_database_url(),
         }
 
         if mode == "custom_llm" and agent.llm_config:
