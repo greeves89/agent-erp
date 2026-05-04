@@ -144,6 +144,14 @@ def register_mcp_servers() -> None:
                 "AGENT_TOKEN": settings.agent_token,
             },
         },
+        "postgres-erp": {
+            "command": "node",
+            "args": ["/opt/mcp/postgres-erp-server.mjs"],
+            "env": {
+                "DATABASE_URL": os.environ.get("DATABASE_URL", "postgresql://agent_erp:devpassword@agent-erp-postgres:5432/agent_erp"),
+                "AGENT_ID": settings.agent_id,
+            },
+        },
     }
 
     for name, cfg in builtin_servers.items():
@@ -217,6 +225,7 @@ def _write_mcp_json_fallback() -> None:
         ("knowledge", "/opt/mcp/knowledge-server.mjs", {"ORCHESTRATOR_URL": settings.orchestrator_url, "AGENT_ID": settings.agent_id, "AGENT_TOKEN": settings.agent_token}),
         ("skills", "/opt/mcp/skill-server.mjs", {"ORCHESTRATOR_URL": settings.orchestrator_url, "AGENT_ID": settings.agent_id, "AGENT_TOKEN": settings.agent_token}),
         ("desktop", "/opt/mcp/computer-use-server.mjs", {"ORCHESTRATOR_URL": settings.orchestrator_url, "AGENT_ID": settings.agent_id, "AGENT_TOKEN": settings.agent_token}),
+        ("postgres-erp", "/opt/mcp/postgres-erp-server.mjs", {"DATABASE_URL": os.environ.get("DATABASE_URL", "postgresql://agent_erp:devpassword@agent-erp-postgres:5432/agent_erp"), "AGENT_ID": settings.agent_id}),
     ]:
         mcp_config["mcpServers"][name] = {"command": "node", "args": [cmd], "env": envs}
 

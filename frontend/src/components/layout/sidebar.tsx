@@ -33,6 +33,9 @@ import {
   BarChart3,
   Info,
   X,
+  Building2,
+  ShoppingCart,
+  FileText,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
@@ -74,6 +77,16 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/knowledge", label: "Knowledge", icon: BookOpen, simpleVisible: true },
       { href: "/meeting-rooms", label: "Meeting Rooms", icon: Users, simpleVisible: false },
+    ],
+  },
+  {
+    label: "ERP",
+    key: "erp",
+    items: [
+      { href: "/erp", label: "Overview", icon: Building2, simpleVisible: true },
+      { href: "/erp/customers", label: "Customers", icon: Users, simpleVisible: true },
+      { href: "/erp/orders", label: "Orders", icon: ShoppingCart, simpleVisible: true },
+      { href: "/erp/invoices", label: "Invoices", icon: FileText, simpleVisible: true },
     ],
   },
   {
@@ -134,6 +147,7 @@ export function Sidebar() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     overview: true,
     collab: true,
+    erp: true,
     automation: true,
     system: true,
   });

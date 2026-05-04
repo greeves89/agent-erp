@@ -28,6 +28,7 @@ services:
           memory: 1G
     networks:
       - internal
+      - agent-network
 
   redis:
     image: redis:7-alpine

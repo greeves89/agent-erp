@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { Plus, Bot } from "lucide-react";
+import { Plus, Bot, Users, ShoppingCart, FileText, DollarSign } from "lucide-react";
 import { useAgents } from "@/hooks/use-agents";
 import { useTasks } from "@/hooks/use-tasks";
 import { Header } from "@/components/layout/header";
@@ -11,6 +12,8 @@ import { StatsOverview } from "@/components/dashboard/stats-overview";
 import { RecentTasks } from "@/components/dashboard/recent-tasks";
 import { CostAttribution } from "@/components/dashboard/cost-attribution";
 import { SystemStatusBar } from "@/components/dashboard/system-status-bar";
+import { cn } from "@/lib/utils";
+import * as api from "@/lib/api";
 
 const containerVariants = {
   hidden: {},
@@ -26,9 +29,65 @@ const itemVariants = {
   },
 };
 
+const erpStatConfig = [
+  {
+    key: "customers",
+    label: "Customers",
+    icon: Users,
+    color: "text-blue-400",
+    iconBg: "bg-blue-500/10",
+    gradient: "from-blue-500/20 via-blue-500/5 to-transparent",
+    format: (v: number) => String(v),
+  },
+  {
+    key: "open_orders",
+    label: "Open Orders",
+    icon: ShoppingCart,
+    color: "text-amber-400",
+    iconBg: "bg-amber-500/10",
+    gradient: "from-amber-500/20 via-amber-500/5 to-transparent",
+    format: (v: number) => String(v),
+  },
+  {
+    key: "overdue_invoices",
+    label: "Overdue Invoices",
+    icon: FileText,
+    color: "text-red-400",
+    iconBg: "bg-red-500/10",
+    gradient: "from-red-500/20 via-red-500/5 to-transparent",
+    format: (v: number) => String(v),
+  },
+  {
+    key: "monthly_revenue",
+    label: "Monthly Revenue",
+    icon: DollarSign,
+    color: "text-emerald-400",
+    iconBg: "bg-emerald-500/10",
+    gradient: "from-emerald-500/20 via-emerald-500/5 to-transparent",
+    format: (v: number) =>
+      new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(v),
+  },
+];
+
 export default function DashboardPage() {
   const { agents, loading: agentsLoading } = useAgents();
   const { tasks } = useTasks();
+  const [erpData, setErpData] = useState<api.ErpDashboard | null>(null);
+
+  useEffect(() => {
+    api.getErpDashboard().then(setErpData).catch(() => {});
+    const interval = setInterval(() => {
+      api.getErpDashboard().then(setErpData).catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const erpValues: Record<string, number> = {
+    customers: erpData?.customer_count ?? 0,
+    open_orders: erpData?.open_orders ?? 0,
+    overdue_invoices: erpData?.overdue_invoices ?? 0,
+    monthly_revenue: erpData?.monthly_revenue ?? 0,
+  };
 
   return (
     <div>
@@ -57,6 +116,46 @@ export default function DashboardPage() {
 
         {/* Stats */}
         <StatsOverview agents={agents} tasks={tasks} />
+
+        {/* ERP Overview */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold tracking-tight">ERP Overview</h3>
+            <Link
+              href="/erp"
+              className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              View details
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {erpStatConfig.map((stat) => {
+              const Icon = stat.icon;
+              return (
+                <div
+                  key={stat.key}
+                  className="relative overflow-hidden rounded-xl border border-foreground/[0.06] bg-card/80 backdrop-blur-sm p-4 transition-all duration-200 hover:border-foreground/[0.1]"
+                >
+                  <div className={cn(
+                    "absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent to-transparent",
+                    stat.gradient
+                  )} />
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", stat.iconBg)}>
+                      <Icon className={cn("h-4 w-4", stat.color)} />
+                    </div>
+                  </div>
+                  <p className="text-[11px] font-medium text-muted-foreground mb-0.5">
+                    {stat.label}
+                  </p>
+                  <p className={cn("text-2xl font-bold tabular-nums leading-none tracking-tight", stat.color)}>
+                    {erpData ? stat.format(erpValues[stat.key]) : "---"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Agents */}
         <div>

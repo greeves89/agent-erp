@@ -1707,3 +1707,108 @@ export interface CostAttribution {
 export async function getCostAttribution(limit = 5): Promise<CostAttribution> {
   return fetchJSON(`${getBase()}/tasks/cost-attribution?limit=${limit}`);
 }
+
+// --- ERP ---
+
+export interface ErpDashboard {
+  customer_count: number;
+  open_orders: number;
+  overdue_invoices: number;
+  monthly_revenue: number;
+}
+
+export interface ErpCustomer {
+  id: number;
+  customer_number: string;
+  company_name: string;
+  contact_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface ErpOrder {
+  id: number;
+  order_number: string;
+  type: "purchase" | "sale";
+  customer_id: number | null;
+  supplier_id: number | null;
+  customer_name: string | null;
+  supplier_name: string | null;
+  status: "draft" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  total: number;
+  currency: string;
+  order_date: string;
+  delivery_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface ErpInvoice {
+  id: number;
+  invoice_number: string;
+  type: "incoming" | "outgoing";
+  customer_id: number | null;
+  supplier_id: number | null;
+  customer_name: string | null;
+  supplier_name: string | null;
+  status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
+  total: number;
+  currency: string;
+  invoice_date: string;
+  due_date: string;
+  paid_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export async function getErpDashboard(): Promise<ErpDashboard> {
+  return fetchJSON(`${getBase()}/erp/dashboard`);
+}
+
+export async function getErpCustomers(q?: string): Promise<{ customers: ErpCustomer[]; total: number }> {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  const qs = params.toString() ? `?${params}` : "";
+  return fetchJSON(`${getBase()}/erp/customers${qs}`);
+}
+
+export async function createErpCustomer(data: {
+  company_name: string;
+  contact_name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+}): Promise<ErpCustomer> {
+  return fetchJSON(`${getBase()}/erp/customers`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getErpOrders(params?: {
+  status?: string;
+  type?: string;
+}): Promise<{ orders: ErpOrder[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set("status", params.status);
+  if (params?.type) sp.set("type", params.type);
+  const qs = sp.toString() ? `?${sp}` : "";
+  return fetchJSON(`${getBase()}/erp/orders${qs}`);
+}
+
+export async function getErpInvoices(params?: {
+  status?: string;
+  type?: string;
+}): Promise<{ invoices: ErpInvoice[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set("status", params.status);
+  if (params?.type) sp.set("type", params.type);
+  const qs = sp.toString() ? `?${sp}` : "";
+  return fetchJSON(`${getBase()}/erp/invoices${qs}`);
+}

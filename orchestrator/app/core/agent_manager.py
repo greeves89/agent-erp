@@ -594,6 +594,8 @@ class AgentManager:
             "AGENT_MODE": mode,
             "MAX_TURNS": str(settings.max_turns),
             "AUTONOMY_LEVEL": autonomy_level.lower(),
+            # Direct Postgres access for ERP MCP server (agent-network can reach postgres)
+            "DATABASE_URL": f"postgresql://agent_erp:{settings.db_password}@agent-erp-postgres:5432/agent_erp",
         }
 
         if mode == "custom_llm" and llm_config:

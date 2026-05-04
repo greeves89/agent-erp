@@ -6,9 +6,11 @@
   "scripts": {
     "memory": "node memory-server.mjs",
     "notifications": "node notification-server.mjs",
-    "orchestrator": "node orchestrator-server.mjs"
+    "orchestrator": "node orchestrator-server.mjs",
+    "postgres-erp": "node postgres-erp-server.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0"
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "pg": "^8.13.0"
   }
 }
