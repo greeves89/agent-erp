@@ -9,21 +9,28 @@ import {
   Users,
   ShoppingCart,
   FileText,
-  Lock,
+  Shield,
 } from "lucide-react";
+import { useAuthStore } from "@/lib/auth";
 
 const erpNav = [
   { href: "/erp", label: "Overview", icon: LayoutDashboard, exact: true, resource: "dashboard" },
   { href: "/erp/customers", label: "Customers", icon: Users, exact: false, resource: "customers" },
   { href: "/erp/orders", label: "Orders", icon: ShoppingCart, exact: false, resource: "orders" },
   { href: "/erp/invoices", label: "Invoices", icon: FileText, exact: false, resource: "invoices" },
+  { href: "/erp/permissions", label: "Permissions", icon: Shield, exact: false, resource: "_admin" },
 ];
 
 export default function ErpLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { can, loading } = useErpPermissions();
+  const currentUser = useAuthStore((s) => s.user);
+  const isAdminOrManager = currentUser?.role === "admin" || currentUser?.role === "manager";
 
-  const visibleNav = erpNav.filter((item) => can(item.resource, "read"));
+  const visibleNav = erpNav.filter((item) => {
+    if (item.resource === "_admin") return isAdminOrManager;
+    return can(item.resource, "read");
+  });
 
   return (
     <div>

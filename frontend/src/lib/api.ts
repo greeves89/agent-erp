@@ -1831,3 +1831,26 @@ export async function getMyErpPermissions(): Promise<{
 }> {
   return fetchJSON(`${getBase()}/erp/permissions/me`);
 }
+
+export async function getUserErpPermissions(userId: string): Promise<{
+  user_id: string;
+  name: string;
+  role: string;
+  permissions: ErpPermissions;
+}> {
+  return fetchJSON(`${getBase()}/erp/permissions/${userId}`);
+}
+
+export async function setUserErpPermissions(
+  userId: string,
+  permissions: { resource: string; can_read: boolean; can_create: boolean; can_update: boolean; can_delete: boolean }[],
+): Promise<{ status: string; user_id: string; overrides: number }> {
+  return fetchJSON(`${getBase()}/erp/permissions`, {
+    method: "PUT",
+    body: JSON.stringify({ user_id: userId, permissions }),
+  });
+}
+
+export async function resetUserErpPermissions(userId: string): Promise<{ status: string }> {
+  return fetchJSON(`${getBase()}/erp/permissions/${userId}`, { method: "DELETE" });
+}
