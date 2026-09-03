@@ -37,8 +37,10 @@ updates:
     open-pull-requests-limit: 10
     labels: ["dependencies", "python"]
     groups:
+      # Majors stay out of the group so each one gets its own reviewable PR.
       all-python:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "pip"
     directory: "/agent"
@@ -62,8 +64,10 @@ updates:
     open-pull-requests-limit: 10
     labels: ["dependencies", "javascript"]
     groups:
+      # Majors stay out of the group so each one gets its own reviewable PR.
       all-npm:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"

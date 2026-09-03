@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.2] — 2026-09-03
+
+### Changed
+- **Dependabot: Major-Updates kommen einzeln** — Die Sammelgruppen `all-npm` und `all-python` nehmen nur noch Minor- und Patch-Updates auf. Bisher landeten Major-Sprünge zusammen mit zwei Dutzend harmlosen Updates in einem einzigen PR: dessen Titel sagte nichts über die enthaltenen Breaking Changes, und wer ihn prüfen wollte, musste jede Abhängigkeit einzeln durchgehen oder blind vertrauen. Major-Updates erscheinen jetzt als eigener PR und lassen sich einzeln bewerten, mergen oder ablehnen, ohne die unkritischen Updates aufzuhalten.
+
+### Fixed
+- **`VERSION` lag auf `0.1.0`** und passte weder zum CHANGELOG (`1.33.1`) noch zum Versions-Badge im README (`1.33.0`) — beim Abspalten dieses Projekts wurde die Datei zurückgesetzt, die übrige Versionshistorie aber übernommen. `VERSION` folgt jetzt wieder der Linie, die CHANGELOG und README ohnehin führen.
+
+---
+
 ## [1.33.1] — 2026-05-03
 
 ### Fixed
