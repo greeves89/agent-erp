@@ -5,7 +5,7 @@
 **AgentERP — Die KI-gesteuerte ERP-Alternative. Agents ersetzen SAP-Module durch Skills.**
 
 [![License: Source Available](https://img.shields.io/badge/license-Source%20Available-orange.svg)](LICENSE.md)
-[![Version](https://img.shields.io/badge/version-1.33.2-green.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-1.33.3-green.svg)](VERSION)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ED.svg)](docker-compose.community.yml)
 [![DSGVO](https://img.shields.io/badge/DSGVO-ready-yellow.svg)](#governance--compliance)
 [![Made in DACH](https://img.shields.io/badge/made%20in-DACH-red.svg)](#)

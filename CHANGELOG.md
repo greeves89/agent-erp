@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.3] — 2026-09-04
+
+### Changed
+- **Abhängigkeiten aktualisiert (Patch-Ebene)** — `pydantic` 2.13.4 → 2.13.5, `uvicorn` 0.52.3 → 0.52.4 im `embedding-service`. Beide Sprünge sind reine Patch-Releases ohne funktionale Änderung an dieser Stelle; zusammengefasst, weil Dependabot-PRs selbst keine Versionsspur mitführen.
+
+---
+
 ## [1.33.2] — 2026-09-03
 
 ### Changed
