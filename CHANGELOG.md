@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.4] — 2026-09-04
+
+### Changed
+- **Abhängigkeiten aktualisiert (Major-Ebene)** — `fastapi` 0.136.1 → 0.141.1, `torch`-Untergrenze `>=2.11.0` → `>=2.13.0`. Beide PRs waren zuvor einzeln geprüft und freigegeben; zusammengefasst, weil Dependabot-PRs selbst keine Versionsspur mitführen.
+- **CI-Actions aktualisiert** — `actions/setup-python` 5 → 7, `actions/checkout` 6 → 7, `softprops/action-gh-release` 2 → 3. Reine Werkzeug-Updates in den GitHub-Workflows, kein Effekt auf Laufzeitverhalten der Anwendung.
+
+---
+
 ## [1.33.3] — 2026-09-04
 
 ### Changed
