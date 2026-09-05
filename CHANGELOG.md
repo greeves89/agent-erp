@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.6] — 2026-09-05
+
+### Changed
+- **Einbettungsdienst auf `sentence-transformers` 6.0.1** (vorher 5.7.0). Für den Betrieb ändert sich nichts: Das Modell lädt unverändert, liefert weiterhin 1024 Dimensionen — und vor allem **dieselben Vektoren**. Vor der Freigabe wurden beide Stände mit demselben Modell und denselben Eingaben verglichen; die Prüfsumme über die Ergebnisvektoren ist auf beiden Seiten gleich. Bereits gespeicherte Einbettungen bleiben damit gültig, es muss nichts neu berechnet werden.
+- **Die Auflösung der Abhängigkeiten wird enger, nicht weiter** — die neue Hauptversion verlangt `transformers` mindestens 5.0 statt bisher 4.41. Die 5er-Reihe war ohnehin schon das, was ein Bauvorgang installiert hat; der Spielraum, in dem zwei Bauvorgänge auseinanderlaufen können, schrumpft dadurch.
+
+### Hinweis
+- Zwei Punkte bleiben offen, beide älter als diese Änderung: `transformers`, `huggingface-hub` und `tokenizers` werden weiterhin ungebunden mitgezogen, und die Abfrage der Vektorgrösse benutzt einen abgekündigten Methodennamen. Beides ist ohne Wirkung auf das heutige Verhalten und daher bewusst nicht in diese Freigabe gezogen worden.
+
+---
+
 ## [1.33.5] — 2026-09-05
 
 ### Changed
