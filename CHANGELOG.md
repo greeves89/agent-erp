@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.5] — 2026-09-05
+
+### Changed
+- **Frontend-Abhängigkeiten aktualisiert** — 14 npm-Pakete auf den aktuellen Stand gebracht, darunter die Radix-UI-Bausteine (Dialog, Dropdown, Select, Tabs, Toast), `recharts` 3.8.1 → 3.10.1, `react-pdf` 10.4.1 → 10.5.0, `date-fns` 4.1.0 → 4.4.0, `zustand` 5.0.11 → 5.0.15 sowie `postcss` 8.5.6 → 8.5.26 und `autoprefixer` 10.4.24 → 10.5.4. Für Nutzer ändert sich die Bedienung nicht; Dialoge und Auswahlfelder erben dabei die Barrierefreiheits- und iOS-Eingabekorrekturen der neueren Radix-Versionen.
+- **Eine Sicherheitslücke weniger im ausgelieferten Frontend** — der `postcss`-Sprung zieht ein neueres `nanoid` nach und beseitigt damit einen als hoch eingestuften Befund. Die übrigen bekannten Befunde bestehen unverändert weiter.
+- **Word-Vorschau auf `docx-preview` 0.4.0** — die einzige Abhängigkeit mit erweitertem Versionsbereich. Die von der Vorschau genutzten Einstellungen sind unverändert vorhanden, die Anzeige verhält sich wie zuvor.
+
+### Hinweis
+- Vor der Freigabe lokal gegen `main` gebaut: Installation, Übersetzung, Typprüfung und Linting laufen durch. Die CI dieses Projekts prüft an dieser Stelle nur Sicherheitsaspekte, keinen Frontend-Build — der Nachweis stammt daher aus dem lokalen Lauf.
+
+---
+
 ## [1.33.4] — 2026-09-04
 
 ### Changed
