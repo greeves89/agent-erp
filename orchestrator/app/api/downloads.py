@@ -5,9 +5,10 @@ import os
 from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
+from app.config import GITHUB_REPO
+
 router = APIRouter(prefix="/download", tags=["downloads"])
 
-GITHUB_REPO = os.getenv("GITHUB_REPO", "greeves89/AI-Employee")
 BRIDGE_TAG = os.getenv("BRIDGE_RELEASE_TAG", "bridge-latest")
 
 

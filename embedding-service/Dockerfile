@@ -1,7 +1,7 @@
 FROM python:3.14-slim
 
-LABEL ai-employee.component="embedding-service"
-LABEL ai-employee.version="1.0.0"
+LABEL agent-erp.component="embedding-service"
+LABEL agent-erp.version="1.0.0"
 
 # System deps for sentence-transformers (torch has compiled binaries)
 RUN apt-get update && apt-get install -y --no-install-recommends \
