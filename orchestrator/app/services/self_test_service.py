@@ -15,7 +15,7 @@ import httpx
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.config import GITHUB_REPO, settings
 from app.db.session import async_session_factory
 from app.models.agent import Agent
 from app.models.notification import Notification
@@ -583,7 +583,8 @@ class SelfTestService:
             logger.warning(f"[SelfTest] Could not get GitHub token: {e}")
             return 0
 
-        repo = "greeves89/AI-Employee"
+        # Issues belong to THIS project (see GITHUB_REPO in app.config).
+        repo = GITHUB_REPO
         issues_created = 0
 
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -689,7 +690,8 @@ class SelfTestService:
         except Exception:
             return 0
 
-        repo = "greeves89/AI-Employee"
+        # Issues belong to THIS project (see GITHUB_REPO in app.config).
+        repo = GITHUB_REPO
         closed = 0
 
         async with httpx.AsyncClient(timeout=15.0) as client:
