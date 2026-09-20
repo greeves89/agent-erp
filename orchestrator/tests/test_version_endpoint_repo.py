@@ -7,6 +7,11 @@ belonged to a different product. They are now derived from one constant
 site, not just the constant, so a stray literal cannot creep back in.
 """
 
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -61,10 +66,50 @@ def test_all_four_urls_derive_from_the_single_repo_constant():
     assert downloads.GITHUB_REPO is config.GITHUB_REPO
 
 
+def _repo_urls_in_fresh_process(github_repo: str | None) -> dict:
+    """Import config + version in a clean interpreter with a controlled env.
+
+    GITHUB_REPO is read once at import time, so the process running this
+    test suite has already fixed the value — a developer with GITHUB_REPO set
+    would see the default test fail although the override works. A fresh
+    process is the only way to observe the default and the override
+    independently of the caller's environment.
+    """
+    env = {k: v for k, v in os.environ.items() if k != "GITHUB_REPO"}
+    if github_repo is not None:
+        env["GITHUB_REPO"] = github_repo
+    code = (
+        "import json; from app import config; from app.api import version, downloads; "
+        "print(json.dumps({'repo': config.GITHUB_REPO, 'raw': version.GITHUB_RAW_URL, "
+        "'api': version.GITHUB_API_URL, 'commits': version.GITHUB_COMMITS_URL, "
+        "'changelog': version.GITHUB_CHANGELOG_URL, 'downloads': downloads.GITHUB_REPO}))"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], env=env, capture_output=True, text=True,
+        cwd=str(Path(__file__).resolve().parent.parent), check=True,
+    )
+    return json.loads(out.stdout.strip().splitlines()[-1])
+
+
 def test_default_repo_is_this_project_not_the_upstream_fork_origin():
     # Default (no GITHUB_REPO env) must name this project; a fork remnant
     # pointing at the upstream repo would silently show a foreign changelog.
-    assert config.GITHUB_REPO.endswith("/agent-erp")
+    urls = _repo_urls_in_fresh_process(None)
+    assert urls["repo"].endswith("/agent-erp")
+    assert urls["raw"] == f"https://raw.githubusercontent.com/{urls['repo']}/main/VERSION"
+
+
+def test_env_override_replaces_the_default_in_every_url():
+    # A fork sets GITHUB_REPO once; every derived URL must follow, exactly.
+    urls = _repo_urls_in_fresh_process("example/mirror")
+    assert urls == {
+        "repo": "example/mirror",
+        "raw": "https://raw.githubusercontent.com/example/mirror/main/VERSION",
+        "api": "https://api.github.com/repos/example/mirror/contents/VERSION",
+        "commits": "https://api.github.com/repos/example/mirror/commits",
+        "changelog": "https://raw.githubusercontent.com/example/mirror/main/CHANGELOG.md",
+        "downloads": "example/mirror",
+    }
 
 
 @pytest.mark.asyncio
