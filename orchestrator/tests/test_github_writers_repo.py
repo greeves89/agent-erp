@@ -13,8 +13,11 @@ creep back in unnoticed. The GitHub token lookup is stubbed; the tests are
 about where the request goes, not about how the token is obtained.
 """
 
+import os
+import subprocess
 import sys
 import types
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -215,6 +218,32 @@ async def test_feedback_issue_honours_an_explicit_setting(monkeypatch):
     assert _Client.calls[0][1] == "https://api.github.com/repos/someone/elsewhere/issues"
 
 
+def _github_repo_in_fresh_process(github_repo: str | None) -> str:
+    """Read config.GITHUB_REPO in a clean interpreter with a controlled env.
+
+    The value is fixed at import time, so within this test process it already
+    reflects the caller's environment: a developer running the suite with
+    GITHUB_REPO set would see the default test fail although the override
+    works. Only a fresh process can observe default and override separately.
+    """
+    env = {k: v for k, v in os.environ.items() if k != "GITHUB_REPO"}
+    if github_repo is not None:
+        env["GITHUB_REPO"] = github_repo
+    out = subprocess.run(
+        [sys.executable, "-c", "from app import config; print(config.GITHUB_REPO)"],
+        env=env, capture_output=True, text=True,
+        cwd=str(Path(__file__).resolve().parent.parent), check=True,
+    )
+    return out.stdout.strip().splitlines()[-1]
+
+
 def test_default_repo_is_this_project_not_the_upstream_fork_origin():
-    assert config.GITHUB_REPO.endswith("/agent-erp")
-    assert UPSTREAM_LITERAL not in config.GITHUB_REPO
+    repo = _github_repo_in_fresh_process(None)
+    assert repo.endswith("/agent-erp")
+    assert UPSTREAM_LITERAL not in repo
+
+
+def test_env_override_replaces_the_default():
+    # A fork sets GITHUB_REPO once; the writers above derive their URLs from
+    # the imported constant, so the override must land there exactly.
+    assert _github_repo_in_fresh_process("example/mirror") == "example/mirror"
