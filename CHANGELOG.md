@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.8] — 2026-09-20
+
+### Fixed
+- **Selbsttest-Issues und Feedback-Issues landen jetzt in diesem Projekt** (#48). Zwei Stellen, die schreibend auf GitHub zugreifen, trugen noch den fest eingetragenen Pfad des Upstream-Projekts, aus dem dieses Repository hervorgegangen ist: der Selbsttest-Dienst (legt bei fehlgeschlagenen Selbsttests `[Self-Test]`-Issues an und schliesst sie wieder, sobald der Test besteht) und der Endpunkt, der aus einem Feedback-Eintrag ein Issue macht. Mit einem Token, das dort Schreibrechte hat, waeren Betriebsbefunde dieser Installation im fremden Tracker gelandet; ohne solche Rechte scheiterte der Schritt still. Beide Stellen leiten das Ziel jetzt aus derselben Quelle ab wie Versionspruefung, Changelog und Bridge-Downloads mit #30 / #47 (`GITHUB_REPO` in `app.config`, per Umgebungsvariable ueberschreibbar); ein ausdrueckliches `github_repo`-Setting hat beim Feedback-Endpunkt weiterhin Vorrang.
+
+### Hinweis
+- Die Anlage von Selbsttest-Issues ist in dieser Installation derzeit ohnehin wirkungslos: der Dienst holt sein GitHub-Token ueber ein Modul (`app.security.encryption`), das es in diesem Repository nicht gibt, und bricht davor still ab. Diese Freigabe aendert daran bewusst nichts — sie stellt nur sicher, dass ein spaeter reparierter Token-Pfad in den richtigen Tracker schreibt. Der tote Token-Pfad ist als Issue #50 erfasst.
+
+---
+
 ## [1.33.7] — 2026-09-19
 
 ### Fixed

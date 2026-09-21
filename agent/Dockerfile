@@ -3,7 +3,7 @@ FROM python:3.14-slim AS base
 # Version label — informational only. Update detection for running agents
 # compares config["agent_version"] against AGENT_VERSION from the VERSION file
 # (agent_manager.py); this label is not read anywhere. Keep it equal to VERSION.
-LABEL agent-erp.version="1.33.7"
+LABEL agent-erp.version="1.33.8"
 
 # Install system dependencies + Node.js (required for Claude Code CLI)
 # Pre-install common tools the agent might need

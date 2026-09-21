@@ -162,9 +162,11 @@ async def create_github_issue(
             detail="GitHub integration not connected. Connect GitHub in Integrations first.",
         )
 
-    # Determine repo from settings or use a default
+    # Explicit setting wins; otherwise the repo this deployment belongs to
+    # (GITHUB_REPO in app.config) — never a hard-coded copy of another project.
+    from app.config import GITHUB_REPO
     from app.config import settings as app_settings
-    repo = getattr(app_settings, "github_repo", "") or "greeves89/AI-Employee"
+    repo = getattr(app_settings, "github_repo", "") or GITHUB_REPO
 
     # Create issue via GitHub API
     import httpx
