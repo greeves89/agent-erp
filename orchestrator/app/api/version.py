@@ -7,18 +7,17 @@ import os
 import httpx
 from fastapi import APIRouter
 
-from app.config import AGENT_VERSION
+from app.config import AGENT_VERSION, GITHUB_REPO
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/version", tags=["version"])
 
-GITHUB_API_URL = (
-    "https://api.github.com/repos/greeves89/AI-Employee/contents/VERSION"
-)
-GITHUB_RAW_URL = (
-    "https://raw.githubusercontent.com/greeves89/AI-Employee/main/VERSION"
-)
+# All GitHub URLs point at THIS repository (see GITHUB_REPO in app.config).
+GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/contents/VERSION"
+GITHUB_RAW_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/VERSION"
+GITHUB_COMMITS_URL = f"https://api.github.com/repos/{GITHUB_REPO}/commits"
+GITHUB_CHANGELOG_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/CHANGELOG.md"
 
 
 async def _get_github_token() -> str:
@@ -75,11 +74,6 @@ async def _fetch_latest_version() -> str | None:
         logger.debug(f"Version check failed: {e}")
 
     return None
-
-
-GITHUB_COMMITS_URL = (
-    "https://api.github.com/repos/greeves89/AI-Employee/commits"
-)
 
 
 async def _fetch_changelog(gh_token: str, limit: int = 20) -> list[dict]:
@@ -141,11 +135,6 @@ async def check_version():
         "latest": remote_version,
         "update_available": update_available,
     }
-
-
-GITHUB_CHANGELOG_URL = (
-    "https://raw.githubusercontent.com/greeves89/AI-Employee/main/CHANGELOG.md"
-)
 
 
 async def _fetch_changelog_md(gh_token: str) -> str | None:

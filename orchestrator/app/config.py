@@ -16,6 +16,12 @@ def _read_version() -> str:
 
 AGENT_VERSION = _read_version()
 
+# The GitHub repository this deployment belongs to (owner/name). Every place
+# that talks to GitHub about *this* project — version check, changelog,
+# bridge downloads — derives its URL from here, so a fork only has to change
+# one value (or set GITHUB_REPO) instead of hunting for hard-coded copies.
+GITHUB_REPO = os.getenv("GITHUB_REPO", "greeves89/agent-erp")
+
 
 class Settings(BaseSettings):
     # Database

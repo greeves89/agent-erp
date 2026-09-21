@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.7] — 2026-09-19
+
+### Fixed
+- **Update-Anzeige und Änderungsverlauf zeigen jetzt dieses Projekt.** Der Versions-Endpunkt verglich die lokale Version bisher mit der VERSION-Datei des Upstream-Projekts, aus dem dieses Repository abgespalten wurde, und `/version/changelog` lieferte dessen Changelog bzw. Commits — die angezeigten Neuerungen gehörten also zu einem anderen Produkt, und das Update-Banner konnte dauerhaft fälschlich leuchten. Alle GitHub-Adressen (Versionsprüfung, Changelog, Bridge-Downloads) leiten sich jetzt aus **einer** Stelle ab (`GITHUB_REPO`, per Umgebungsvariable überschreibbar), so dass beim nächsten Abspalten nichts mehr halb stehen bleibt. (#30)
+- Die Docker-Labels des Einbettungsdienstes tragen den Namensraum dieses Projekts; der Kommentar am Agent-Image behauptet nicht mehr, das Label löse die Update-Erkennung aus (sie liest die VERSION-Datei).
+
+### Hinweis
+- Zwei weitere Reste derselben Klasse bleiben bewusst offen und sind als Folge-Issue gemeldet: der Selbsttest legt Issues im Upstream-Repository an, und der Feedback-Endpunkt fällt ohne konfiguriertes Repo ebenfalls auf das Upstream-Repository zurück.
+
+---
+
 ## [1.33.6] — 2026-09-05
 
 ### Changed
