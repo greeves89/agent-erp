@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.12] — 2026-09-22
+
+### Geaendert
+- sentence-transformers im Einbettungsdienst auf 6.1.0 angehoben (Dependabot, #52). Die Verhaltensaenderung dieser Fassung betrifft nur multimodale Eingaben als Dictionary; der Dienst bettet ausschliesslich Text ein und ist davon nicht betroffen. Das verwendete Modell bleibt unveraendert.
+
+---
+
 ## [1.33.11] — 2026-09-22
 
 ### Geaendert
