@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.10] — 2026-09-22
+
+### Geaendert
+- Frontend npm-Patch-Gruppe angehoben: autoprefixer, postcss und Transitivabhaengigkeiten (Dependabot, #36).
+
+---
+
 ## [1.33.9] — 2026-09-22
 
 ### Geaendert
