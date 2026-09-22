@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.9] — 2026-09-22
+
+### Geaendert
+- torch-Abhaengigkeit im Einbettungsdienst auf >=2.14.0 angehoben (Dependabot, #35).
+
+---
+
 ## [1.33.8] — 2026-09-20
 
 ### Fixed
