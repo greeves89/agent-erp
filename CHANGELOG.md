@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.11] — 2026-09-22
+
+### Geaendert
+- uvicorn im Einbettungsdienst auf 0.53.0 angehoben (Dependabot, #51). Die Vorgabe fuer vertrauenswuerdige Proxy-Adressen umfasst jetzt zusaetzlich das IPv6-Loopback; der Dienst laeuft intern und ohne eigene Proxy-Header-Einstellung, daher ohne Auswirkung.
+
+---
+
 ## [1.33.10] — 2026-09-22
 
 ### Geaendert
