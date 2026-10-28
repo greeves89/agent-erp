@@ -5,6 +5,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.14] — 2026-10-28
+
+### Behoben
+- Ein gruener Pruefsatz auf einem Abhaengigkeits-PR bedeutet jetzt wieder, dass die Abbilder
+  tatsaechlich bauen. Bisher verschluckte der Bau-Schritt im Sicherheits-Workflow jeden Fehler
+  (`docker build ... || true`): das Frontend konnte komplett aufhoeren zu kompilieren, und die
+  Pruefung meldete trotzdem Erfolg. Wer einen Abhaengigkeits-Sprung uebernahm, hatte damit keine
+  Aussage darueber, ob die Anwendung danach noch startet. Der Bau ist jetzt eine echte Huerde;
+  Schwachstellen-Funde und Scanner-Stoerungen bleiben bewusst nur berichtend und faerben nichts rot.
+- Der Einbettungsdienst wird in der Pruefung erstmals gebaut und auditiert. Seine
+  `requirements.txt` wurde bisher in keinem Arbeitsablauf installiert — die fuenf wartenden
+  Abhaengigkeits-PRs auf diese Datei hatten deshalb ueberhaupt keine Pruefaussage.
+
+### Geaendert
+- Die Abhaengigkeits-Audits (pip-audit, npm audit) sind als bewusst berichtend gekennzeichnet:
+  ein neu veroeffentlichter CVE in einer Fremdbibliothek soll nicht jeden offenen PR blockieren.
+  Das war vorher schon so, sah aber wie ein Versehen aus.
+- Der Sicherheits-Workflow laesst sich jetzt von Hand starten (`workflow_dispatch`), damit der
+  Bau-Zustand der Hauptlinie ohne einen PR gemessen werden kann.
+
+---
+
 ## [1.33.13] — 2026-10-28
 
 ### Geaendert
