@@ -31,23 +31,21 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit
 
+      # orchestrator/ and agent/ declare their dependencies in pyproject.toml —
+      # NOT in a requirements.txt. Until 1.33.14 both steps ran
+      # `pip-audit -r requirements.txt` and died with "invalid requirements
+      # input", swallowed by `|| true`: the job reported green and audited
+      # nothing at all. `pip-audit <path>` resolves a project directory.
       - name: Audit orchestrator dependencies
         run: |
-          cd orchestrator
-          pip install -r requirements.txt 2>/dev/null || true
-          pip-audit -r requirements.txt --desc --fix --dry-run || true
-          pip-audit -r requirements.txt --format json --output ../orchestrator-audit.json || true
+          pip-audit orchestrator --desc || true
+          pip-audit orchestrator --format json --output orchestrator-audit.json || true
 
       - name: Audit agent dependencies
-        run: |
-          cd agent
-          pip install -r requirements.txt 2>/dev/null || true
-          pip-audit -r requirements.txt --desc || true
+        run: pip-audit agent --desc || true
 
       - name: Audit embedding-service dependencies
-        run: |
-          cd embedding-service
-          pip-audit -r requirements.txt --desc || true
+        run: pip-audit -r embedding-service/requirements.txt --desc || true
 
       - name: Upload audit results
         if: always()
@@ -83,10 +81,16 @@ jobs:
 
   # ── Image build gate + container scan ────────────────────────────
   # THIS JOB GATES. The build step has no `|| true`: if a Dockerfile stops
-  # building — e.g. because `npm run build` or `pip install -r
-  # requirements.txt` fails after a dependency bump — this check goes red.
-  # That is the whole point: a green check set on a dependency PR must mean
-  # "the image still builds".
+  # building after a dependency bump — `npm run build` for frontend,
+  # `pip install -e .` from pyproject.toml for orchestrator and agent,
+  # `pip install -r requirements.txt` for embedding-service — this check goes
+  # red. That is the whole point: a green check set on a dependency PR must
+  # mean "the image still builds".
+  #
+  # Accepted consequence: the gate is now coupled to upstream availability
+  # (unpinned `npm install -g hyperframes`, apt repos, `torch>=2.14.1`). An
+  # upstream breakage can redden an unrelated PR. That was always true — the
+  # `|| true` just hid it, at the price of hiding real breakage too.
   #
   # The Trivy steps that follow are explicitly NON-gating
   # (`continue-on-error`): vulnerability findings, and scanner problems such
@@ -94,6 +98,7 @@ jobs:
   image-build:
     name: Image Build & Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 45 # embedding-service pulls the full torch wheel set
     strategy:
       fail-fast: false # one broken context must not hide the state of the others
       matrix:
@@ -119,7 +124,9 @@ jobs:
           exit-code: 0 # report findings, never fail the gate
 
       - name: Upload Trivy scan to GitHub Security
-        if: always()
+        # Only when a report exists: on a red build there is no SARIF, and an
+        # upload step failing there is pure noise on top of the real error.
+        if: hashFiles(format('trivy-{0}.sarif', matrix.context.name)) != ''
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v4
         with:

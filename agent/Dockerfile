@@ -56,9 +56,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     libpango-1.0-0 \
     libcairo2 \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* \
-    && npx -y @playwright/mcp@latest --version 2>/dev/null || true \
-    && npx -y playwright install chromium --with-deps 2>/dev/null || true
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Warm the Playwright caches. DELIBERATELY TOLERANT: these downloads are an
+# optimisation, and the image stays usable without them. Kept as their own RUN
+# lines on purpose — chained onto the apt-get install above (as they were until
+# 1.33.14), the trailing `|| true` also swallowed a failed `apt-get install`,
+# because `&&` and `||` are left-associative and equal in precedence. The image
+# then built "successfully" without chromium, xvfb or any of the libs, and the
+# failure only surfaced at runtime.
+RUN npx -y @playwright/mcp@latest --version 2>/dev/null || true
+RUN npx -y playwright install chromium --with-deps 2>/dev/null || true
 
 # Point Puppeteer/hyperframes to the system Chromium (avoids x86_64 download on ARM)
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
