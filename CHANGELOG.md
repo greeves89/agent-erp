@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.13] — 2026-10-28
+
+### Geaendert
+- Mindestfassung von torch im Einbettungsdienst von 2.14.0 auf 2.14.1 angehoben (Dependabot, #60).
+  Fassung 2.14.0 liefert in bestimmten Faellen still falsche Ergebnisse (`torch.linalg.lstsq`
+  und `torch.linalg.svd` bei schlecht konditionierten Eingaben); 2.14.1 behebt das. Da die
+  bisherige Angabe `>=2.14.0` die neuere Fassung ohnehin zuliess, aendert sich am tatsaechlich
+  installierten Paket nichts — die fehlerhafte Fassung ist jetzt aber ausgeschlossen.
+
+---
+
 ## [1.33.12] — 2026-09-22
 
 ### Geaendert
