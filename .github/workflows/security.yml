@@ -7,6 +7,7 @@ on:
     branches: [main]
   schedule:
     - cron: "0 6 * * 1" # Weekly Monday 06:00 UTC
+  workflow_dispatch: # allows measuring main's build state on demand
 
 permissions:
   contents: read
@@ -14,8 +15,11 @@ permissions:
 
 jobs:
   # ── Python dependency audit ──────────────────────────────────────
+  # ADVISORY BY DESIGN: every step ends in `|| true` on purpose. A newly
+  # published CVE in a third-party dependency must not block unrelated PRs.
+  # This job reports; it never gates. The gate is `image-build` below.
   python-audit:
-    name: Python Dependency Audit
+    name: Python Dependency Audit (advisory)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -27,18 +31,21 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit
 
+      # orchestrator/ and agent/ declare their dependencies in pyproject.toml —
+      # NOT in a requirements.txt. Until 1.33.14 both steps ran
+      # `pip-audit -r requirements.txt` and died with "invalid requirements
+      # input", swallowed by `|| true`: the job reported green and audited
+      # nothing at all. `pip-audit <path>` resolves a project directory.
       - name: Audit orchestrator dependencies
         run: |
-          cd orchestrator
-          pip install -r requirements.txt 2>/dev/null || true
-          pip-audit -r requirements.txt --desc --fix --dry-run || true
-          pip-audit -r requirements.txt --format json --output ../orchestrator-audit.json || true
+          pip-audit orchestrator --desc || true
+          pip-audit orchestrator --format json --output orchestrator-audit.json || true
 
       - name: Audit agent dependencies
-        run: |
-          cd agent
-          pip install -r requirements.txt 2>/dev/null || true
-          pip-audit -r requirements.txt --desc || true
+        run: pip-audit agent --desc || true
+
+      - name: Audit embedding-service dependencies
+        run: pip-audit -r embedding-service/requirements.txt --desc || true
 
       - name: Upload audit results
         if: always()
@@ -48,8 +55,9 @@ jobs:
           path: orchestrator-audit.json
 
   # ── Node.js dependency audit ─────────────────────────────────────
+  # ADVISORY BY DESIGN — see the note on python-audit above.
   node-audit:
-    name: Node.js Dependency Audit
+    name: Node.js Dependency Audit (advisory)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -71,33 +79,55 @@ jobs:
           name: node-audit
           path: frontend-audit.json
 
-  # ── Container image scanning ─────────────────────────────────────
-  container-scan:
-    name: Container Image Scan (Trivy)
+  # ── Image build gate + container scan ────────────────────────────
+  # THIS JOB GATES. The build step has no `|| true`: if a Dockerfile stops
+  # building after a dependency bump — `npm run build` for frontend,
+  # `pip install -e .` from pyproject.toml for orchestrator and agent,
+  # `pip install -r requirements.txt` for embedding-service — this check goes
+  # red. That is the whole point: a green check set on a dependency PR must
+  # mean "the image still builds".
+  #
+  # Accepted consequence: the gate is now coupled to upstream availability
+  # (unpinned `npm install -g hyperframes`, apt repos, `torch>=2.14.1`). An
+  # upstream breakage can redden an unrelated PR. That was always true — the
+  # `|| true` just hid it, at the price of hiding real breakage too.
+  #
+  # The Trivy steps that follow are explicitly NON-gating
+  # (`continue-on-error`): vulnerability findings, and scanner problems such
+  # as a failed DB download, must never be mistaken for a broken build.
+  image-build:
+    name: Image Build & Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 45 # embedding-service pulls the full torch wheel set
     strategy:
+      fail-fast: false # one broken context must not hide the state of the others
       matrix:
         context:
           - { name: orchestrator, path: ./orchestrator }
           - { name: agent, path: ./agent }
           - { name: frontend, path: ./frontend }
+          - { name: embedding-service, path: ./embedding-service }
     steps:
       - uses: actions/checkout@v7
 
-      - name: Build ${{ matrix.context.name }} image
-        run: docker build -t scan-${{ matrix.context.name }}:local ${{ matrix.context.path }} || true
+      - name: Build ${{ matrix.context.name }} image (gating)
+        run: docker build -t scan-${{ matrix.context.name }}:local ${{ matrix.context.path }}
 
       - name: Run Trivy vulnerability scanner
+        continue-on-error: true
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: scan-${{ matrix.context.name }}:local
           format: sarif
           output: trivy-${{ matrix.context.name }}.sarif
           severity: CRITICAL,HIGH
-          exit-code: 0 # Don't fail build, just report
+          exit-code: 0 # report findings, never fail the gate
 
       - name: Upload Trivy scan to GitHub Security
-        if: always()
+        # Only when a report exists: on a red build there is no SARIF, and an
+        # upload step failing there is pure noise on top of the real error.
+        if: hashFiles(format('trivy-{0}.sarif', matrix.context.name)) != ''
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.context.name }}.sarif

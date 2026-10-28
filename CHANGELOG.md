@@ -5,6 +5,40 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.14] — 2026-10-28
+
+### Behoben
+- Ein gruener Pruefsatz auf einem Abhaengigkeits-PR bedeutet jetzt wieder, dass die Abbilder
+  tatsaechlich bauen. Bisher verschluckte der Bau-Schritt im Sicherheits-Workflow jeden Fehler
+  (`docker build ... || true`): das Frontend konnte komplett aufhoeren zu kompilieren, und die
+  Pruefung meldete trotzdem Erfolg. Wer einen Abhaengigkeits-Sprung uebernahm, hatte damit keine
+  Aussage darueber, ob die Anwendung danach noch startet. Der Bau ist jetzt eine echte Huerde;
+  Schwachstellen-Funde und Scanner-Stoerungen bleiben bewusst nur berichtend und faerben nichts rot.
+- Der Einbettungsdienst wird in der Pruefung erstmals gebaut und auditiert. Seine
+  `requirements.txt` wurde bisher in keinem Arbeitsablauf installiert — die fuenf wartenden
+  Abhaengigkeits-PRs auf diese Datei hatten deshalb ueberhaupt keine Pruefaussage.
+
+- Der Abhaengigkeits-Audit fuer Orchestrator und Agent lief ins Leere und meldete trotzdem
+  Erfolg. Beide pruefen gegen eine `requirements.txt`, die es in diesen Verzeichnissen nicht
+  gibt (die Abhaengigkeiten stehen in `pyproject.toml`); der Aufruf brach jedes Mal mit
+  "invalid requirements input" ab und der angehaengte `|| true` verschluckte es. Ein neuer CVE
+  in einer dieser Abhaengigkeiten wurde also nie gemeldet. Der Audit liest jetzt das Projekt
+  selbst und findet die Abhaengigkeiten wirklich.
+- Das Agent-Abbild konnte ohne Browser gebaut werden, ohne dass es auffiel. Die Installation von
+  Chromium, xvfb und den zugehoerigen Bibliotheken endete in derselben Befehlskette wie zwei
+  nachgelagerte, bewusst fehlertolerante Schritte — deren `|| true` hat auch den Fehlschlag der
+  Installation mitverschluckt. Das Abbild galt dann als fertig, und der Ausfall zeigte sich erst
+  im Betrieb bei der Browser-Steuerung. Die tolerierten Schritte stehen jetzt getrennt.
+
+### Geaendert
+- Die Abhaengigkeits-Audits bleiben ausdruecklich berichtend: ein neu veroeffentlichter CVE in
+  einer Fremdbibliothek soll nicht jeden offenen PR blockieren. Das ist jetzt als Absicht
+  vermerkt, statt wie ein Versehen auszusehen.
+- Der Sicherheits-Workflow laesst sich jetzt von Hand starten (`workflow_dispatch`), damit der
+  Bau-Zustand der Hauptlinie ohne einen PR gemessen werden kann.
+
+---
+
 ## [1.33.13] — 2026-10-28
 
 ### Geaendert
