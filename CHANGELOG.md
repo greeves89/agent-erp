@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.15] - 2026-10-29
+
+### Geaendert
+- Der Einbettungsdienst laeuft auf dem neueren Anwendungsserver (uvicorn 0.54.0 statt 0.53.0).
+  Fuer den Betrieb aendert sich nichts am Verhalten; der Sprung ist der erste auf die
+  Abhaengigkeiten dieses Dienstes, der ueberhaupt eine Bau-Aussage hinter sich hat: seit der
+  scharfen Pruefung aus 1.33.14 wird sein Abbild in der Pruefung wirklich gebaut, und dieser
+  Bau war gruen. Die vier frueheren Sprungvorschlaege auf dieselbe Datei trugen dagegen einen
+  gruenen Pruefsatz, der mit dem Bau des Dienstes nichts zu tun hatte.
+
+---
+
 ## [1.33.14] — 2026-10-28
 
 ### Behoben
