@@ -5,11 +5,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.19] - 2026-10-29
+
+### Behoben
+- Zwei Angaben in den Eintraegen von heute waren fuer den Betreiber irrefuehrend und sind
+  korrigiert. (1) 1.33.16 beanspruchte, der Sprung sei „erstmals" gegen ein gebautes Abbild
+  gemessen — das war bereits bei 1.33.15 der Fall; beide Eintraege konnten nicht gleichzeitig
+  stimmen. (2) 1.33.18 sprach von „21 Zwischenschritten" beim fastapi-Sprung. Das sind 21
+  Minor-Stufen, in denen tatsaechlich 41 Fassungen veroeffentlicht wurden — wer die
+  Angriffsflaeche des Sprungs abschaetzen will, haette sie um die Haelfte zu klein angesetzt.
+  Am Code aendert sich nichts, nur an dem, was hier nachlesbar ist.
+
+---
+
 ## [1.33.18] - 2026-10-29
 
 ### Geaendert
-- Der Einbettungsdienst nutzt das neuere Web-Gerüst (fastapi 0.162.0 statt 0.141.1, 21
-  Zwischenschritte auf einem 0.x-Stand). Fuer den Betrieb aendert sich nichts am Verhalten:
+- Der Einbettungsdienst nutzt das neuere Web-Gerüst (fastapi 0.162.0 statt 0.141.1 — 21
+  Minor-Stufen, in denen 41 Fassungen veroeffentlicht wurden, alle auf einem 0.x-Stand). Fuer den Betrieb aendert sich nichts am Verhalten:
   alle vier Schnittstellen des Dienstes antworten unveraendert, und die Pflichtpruefungen der
   Eingaben (leerer Text, leere Stapelliste) greifen weiter. Das ist hier nicht aus der
   Versionsnummer geschlossen, sondern gemessen — der Dienst wurde mit der neuen Fassung
@@ -38,8 +51,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ### Geaendert
 - Der Einbettungsdienst nutzt die neuere Datenpruefung (pydantic 2.14.1 statt 2.13.5).
-  Fuer den Betrieb aendert sich nichts am Verhalten; neu ist, dass dieser Sprung erstmals
-  gegen ein wirklich gebautes Abbild gemessen ist — der scharfe Bau-Schritt aus 1.33.14 hat
+  Fuer den Betrieb aendert sich nichts am Verhalten; wie beim Vorgaenger 1.33.15 ist dieser
+  Sprung gegen ein wirklich gebautes Abbild gemessen — der scharfe Bau-Schritt aus 1.33.14 hat
   den Dienst mit der neuen Fassung gruen gebaut, und der Zweig stand dabei auf dem aktuellen
   Hauptstand. Der Sprung hebt im Unterbau die Mindestfassung von `typing-extensions` auf
   4.16.0 und verlangt mindestens Python 3.10; das Abbild liegt mit Python 3.14 darueber.
