@@ -5,6 +5,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.18] - 2026-10-29
+
+### Geaendert
+- Der Einbettungsdienst nutzt das neuere Web-Gerüst (fastapi 0.162.0 statt 0.141.1, 21
+  Zwischenschritte auf einem 0.x-Stand). Fuer den Betrieb aendert sich nichts am Verhalten:
+  alle vier Schnittstellen des Dienstes antworten unveraendert, und die Pflichtpruefungen der
+  Eingaben (leerer Text, leere Stapelliste) greifen weiter. Das ist hier nicht aus der
+  Versionsnummer geschlossen, sondern gemessen — der Dienst wurde mit der neuen Fassung
+  gestartet und abgefragt, zusaetzlich zum scharfen Bau-Schritt aus 1.33.14.
+- Das Abbild des Dienstes enthaelt dadurch ein Paket mehr: `opentelemetry-api` (>=1.44.0)
+  wird von der neuen Fassung verlangt, obwohl der Dienst selbst keine Messdaten ausliefert.
+  Gegengemessen an den Paketangaben beider Fassungen ist das der EINZIGE Zuwachs der
+  Lieferkette; die uebrigen Abhaengigkeiten sind unveraendert.
+
+---
+
 ## [1.33.17] - 2026-10-29
 
 ### Geaendert
