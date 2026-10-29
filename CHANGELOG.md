@@ -5,6 +5,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.17] - 2026-10-29
+
+### Geaendert
+- Der Einbettungsdienst nutzt die neuere Einbettungsbibliothek (sentence-transformers 6.2.0
+  statt 6.1.0). Fuer den Betrieb aendert sich nichts am Verhalten. Benennenswert ist eine
+  Nebenwirkung, die aus der Versionszeile allein nicht hervorgeht: die neue Fassung weitet die
+  Obergrenze ihres Modell-Nachladers (`huggingface-hub`) von `<2.0.0` auf `<3.0.0`. Eine
+  Neuinstallation darf damit ab sofort auch die 2er-Reihe ziehen. Belegt ist das nicht durch die
+  Weitung selbst, sondern dadurch, dass der scharfe Bau-Schritt aus 1.33.14 das Abbild mit genau
+  dieser Abhaengigkeitsdatei wirklich installiert und gebaut hat — und dieser Bau war gruen.
+
+---
+
 ## [1.33.16] - 2026-10-29
 
 ### Geaendert
