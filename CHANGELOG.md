@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [1.33.16] - 2026-10-29
+
+### Geaendert
+- Der Einbettungsdienst nutzt die neuere Datenpruefung (pydantic 2.14.1 statt 2.13.5).
+  Fuer den Betrieb aendert sich nichts am Verhalten; neu ist, dass dieser Sprung erstmals
+  gegen ein wirklich gebautes Abbild gemessen ist — der scharfe Bau-Schritt aus 1.33.14 hat
+  den Dienst mit der neuen Fassung gruen gebaut, und der Zweig stand dabei auf dem aktuellen
+  Hauptstand. Der Sprung hebt im Unterbau die Mindestfassung von `typing-extensions` auf
+  4.16.0 und verlangt mindestens Python 3.10; das Abbild liegt mit Python 3.14 darueber.
+
+---
+
 ## [1.33.15] - 2026-10-29
 
 ### Geaendert
